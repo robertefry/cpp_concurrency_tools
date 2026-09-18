@@ -1,0 +1,35 @@
+
+#ifndef CTS_SPSC_CHANNEL_FWD
+#define CTS_SPSC_CHANNEL_FWD
+
+#include <cstddef>
+#include <tuple>
+#include <memory>
+
+namespace cts::spsc {
+
+    template <typename T, typename Channel>
+    class Sender;
+
+    template <typename T, typename Channel>
+    class Receiver;
+
+    namespace impl {
+
+        template <typename T, typename Allocator = std::allocator<T>>
+        class ArrayChannel;
+
+    } // namespace impl
+
+    template <typename T, typename Allocator = std::allocator<T>>
+    [[nodiscard]] auto channel_bounded(
+        size_t capacity,
+        Allocator const& allocator = Allocator{}
+    ) -> std::tuple<
+        Sender<T,impl::ArrayChannel<T,Allocator>>,
+        Receiver<T,impl::ArrayChannel<T,Allocator>>
+    >;
+
+} // namespace cts::spsc
+
+#endif /* CTS_SPSC_CHANNEL_FWD */
