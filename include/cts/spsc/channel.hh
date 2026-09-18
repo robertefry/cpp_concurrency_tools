@@ -18,18 +18,13 @@ namespace cts::spsc {
             : _channel{std::move(channel)}
         {}
 
-        friend auto channel_bounded<T,typename Channel::allocator_type>(
-            size_t capacity,
-            Channel::allocator_type const& allocator
-        ) -> std::tuple<
-            Sender<T,Channel>,
-            Receiver<T,Channel>
-        >;
+        friend Channel;
 
     public:
         Sender(Sender&&) noexcept = default;
         Sender& operator=(Sender&&) noexcept = default;
 
+        [[nodiscard]] auto capacity() const { return _channel->capacity(); }
         [[nodiscard]] auto size() const { return _channel->size(); }
         [[nodiscard]] auto is_full() const { return _channel->is_full(); }
 
@@ -52,18 +47,13 @@ namespace cts::spsc {
             : _channel{std::move(channel)}
         {}
 
-        friend auto channel_bounded<T,typename Channel::allocator_type>(
-            size_t capacity,
-            Channel::allocator_type const& allocator
-        ) -> std::tuple<
-            Sender<T,Channel>,
-            Receiver<T,Channel>
-        >;
+        friend Channel;
 
     public:
         Receiver(Receiver&&) noexcept = default;
         Receiver& operator=(Receiver&&) noexcept = default;
 
+        [[nodiscard]] auto capacity() const { return _channel->capacity(); }
         [[nodiscard]] auto size() const { return _channel->size(); }
         [[nodiscard]] auto is_empty() const { return _channel->is_empty(); }
 
@@ -76,13 +66,38 @@ namespace cts::spsc {
 
     namespace impl {
 
-        template <typename T, typename Allocator>
+        class IndexPolicyMasking {
+            size_t _index_mask;
+        public:
+            inline explicit IndexPolicyMasking(size_t capacity)
+                : _index_mask {capacity - 1}
+            {
+                assert(capacity > 0);
+                assert((capacity & (capacity - 1)) == 0);
+            }
+            [[nodiscard]] inline auto capacity() const { return _index_mask + 1; }
+            [[nodiscard]] inline auto index(size_t i) const { return i & _index_mask; }
+        };
+
+        class IndexPolicyModulo {
+            size_t _capacity;
+        public:
+            inline explicit IndexPolicyModulo(size_t capacity)
+                : _capacity {capacity}
+            {
+                assert(capacity > 0);
+            }
+            [[nodiscard]] inline auto capacity() const { return _capacity; }
+            [[nodiscard]] inline auto index(size_t i) const { return i % _capacity; }
+        };
+
+        template <typename T, typename IndexPolicy, typename Allocator>
         class ArrayChannel {
 
             Allocator _alloc;
+            IndexPolicy _indexer;
 
             T*     _buffer;
-            size_t _buffer_mask;
 
             std::atomic_size_t _head;
             std::atomic_size_t _tail;
@@ -98,8 +113,8 @@ namespace cts::spsc {
 
             ArrayChannel(ArrayChannel&& other) noexcept
                 : _alloc {std::move(other._alloc)}
+                , _indexer {std::move(other._indexer)}
                 , _buffer {std::exchange(other._buffer, nullptr)}
-                , _buffer_mask {std::exchange(other._buffer_mask, 0)}
                 , _head {std::atomic_exchange_explicit(&other._head, 0, std::memory_order_relaxed)}
                 , _tail {std::atomic_exchange_explicit(&other._tail, 0, std::memory_order_relaxed)}
             {}
@@ -112,8 +127,8 @@ namespace cts::spsc {
                 alloc_traits::deallocate(_alloc, _buffer, capacity());
 
                 _alloc = std::move(other._alloc); // TODO: proper threading of this allocator
+                _indexer = std::move(other._indexer);
                 _buffer = std::exchange(other._buffer, nullptr);
-                _buffer_mask = std::exchange(other._buffer_mask, 0);
                 _head = std::atomic_exchange_explicit(&other._head, 0, std::memory_order_relaxed);
                 _tail = std::atomic_exchange_explicit(&other._tail, 0, std::memory_order_relaxed);
 
@@ -125,16 +140,23 @@ namespace cts::spsc {
                 allocator_type const& allocator = allocator_type{}
             )
                 : _alloc {allocator}
+                , _indexer {capacity}
                 , _buffer {alloc_traits::allocate(_alloc, capacity)}
-                , _buffer_mask {capacity-1}
                 , _head {0}
                 , _tail {0}
-            {
-                assert(capacity > 0);
-                assert((capacity & (capacity - 1)) == 0);
+            {}
+
+            [[nodiscard]] static auto make_endpoints(
+                size_t capacity,
+                Allocator const& allocator = Allocator{}
+            ) {
+                using Channel = ArrayChannel<T,IndexPolicy,Allocator>;
+
+                auto channel = std::make_shared<Channel>(capacity, allocator);
+                return std::tuple{ Sender<T,Channel>{channel}, Receiver<T,Channel>{channel} };
             }
 
-            [[nodiscard]] auto capacity() const { return _buffer_mask + 1; }
+            [[nodiscard]] auto capacity() const { return _indexer.capacity(); }
 
             [[nodiscard]] auto size() const -> size_t {
                 auto head = _head.load(std::memory_order_acquire);
@@ -153,7 +175,7 @@ namespace cts::spsc {
                 assert(not is_full());
                 auto head = _head.load(std::memory_order_acquire);
 
-                alloc_traits::construct(_alloc, _buffer + (head & _buffer_mask), std::forward<Args>(args)...);
+                alloc_traits::construct(_alloc, _buffer + _indexer.index(head), std::forward<Args>(args)...);
                 _head.store(head + 1, std::memory_order_release);
             }
 
@@ -161,9 +183,9 @@ namespace cts::spsc {
                 assert(not is_empty());
                 auto tail = _tail.load(std::memory_order_acquire);
 
-                auto value = std::move(_buffer[tail & _buffer_mask]);
+                auto value = std::move(_buffer[_indexer.index(tail)]);
 
-                alloc_traits::destroy(_alloc, _buffer + (tail & _buffer_mask));
+                alloc_traits::destroy(_alloc, _buffer + _indexer.index(tail));
                 _tail.store(tail + 1, std::memory_order_release);
 
                 return value;
@@ -173,7 +195,7 @@ namespace cts::spsc {
                 assert(not is_empty());
                 auto tail = _tail.load(std::memory_order_acquire);
 
-                alloc_traits::destroy(_alloc, _buffer + (tail & _buffer_mask));
+                alloc_traits::destroy(_alloc, _buffer + _indexer.index(tail));
                 _tail.store(tail + 1, std::memory_order_release);
             }
 
@@ -182,7 +204,7 @@ namespace cts::spsc {
                 auto tail = _tail.load(std::memory_order_acquire);
 
                 while (tail != head) {
-                    alloc_traits::destroy(_alloc, _buffer + (tail & _buffer_mask));
+                    alloc_traits::destroy(_alloc, _buffer + _indexer.index(tail));
                     tail += 1;
                 }
                 _tail.store(tail, std::memory_order_release);
@@ -192,21 +214,22 @@ namespace cts::spsc {
 
     } // namespace impl
 
-    template <typename T, typename Allocator>
+    template <typename T, typename Allocator = std::allocator<T>>
+    inline auto channel_bounded_fast(
+        size_t capacity,
+        Allocator const& allocator = Allocator{}
+    ) {
+        using Channel = impl::ArrayChannel<T,impl::IndexPolicyMasking,Allocator>;
+        return Channel::make_endpoints(capacity, allocator);
+    }
+
+    template <typename T, typename Allocator = std::allocator<T>>
     inline auto channel_bounded(
         size_t capacity,
-        Allocator const& allocator
-    ) -> std::tuple<
-        Sender<T, impl::ArrayChannel<T,Allocator>>,
-        Receiver<T, impl::ArrayChannel<T,Allocator>>
-    > {
-        auto channel = std::make_shared<impl::ArrayChannel<T,Allocator>>(
-            capacity, allocator
-        );
-        return std::tuple{
-            Sender<T,impl::ArrayChannel<T,Allocator>>{channel},
-            Receiver<T,impl::ArrayChannel<T,Allocator>>{channel},
-        };
+        Allocator const& allocator = Allocator{}
+    ) {
+        using Channel = impl::ArrayChannel<T,impl::IndexPolicyModulo,Allocator>;
+        return Channel::make_endpoints(capacity, allocator);
     }
 
 } // namespace cts::spsc

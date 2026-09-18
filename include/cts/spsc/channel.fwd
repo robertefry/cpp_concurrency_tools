@@ -16,19 +16,13 @@ namespace cts::spsc {
 
     namespace impl {
 
-        template <typename T, typename Allocator = std::allocator<T>>
+        class IndexPolicyMasking;
+        class IndexPolicyModulo;
+
+        template <typename T, typename IndexPolicy, typename Allocator = std::allocator<T>>
         class ArrayChannel;
 
     } // namespace impl
-
-    template <typename T, typename Allocator = std::allocator<T>>
-    [[nodiscard]] auto channel_bounded(
-        size_t capacity,
-        Allocator const& allocator = Allocator{}
-    ) -> std::tuple<
-        Sender<T,impl::ArrayChannel<T,Allocator>>,
-        Receiver<T,impl::ArrayChannel<T,Allocator>>
-    >;
 
 } // namespace cts::spsc
 

@@ -5,10 +5,17 @@
 
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("basic channel")
-{
-    constexpr size_t channel_size = 16;
-    auto [sender, receiver] = cts::spsc::channel_bounded<int>(channel_size);
+template <typename T, auto EndpointFactory, size_t N, typename Allocator = std::allocator<T>>
+struct ChannelFixture {
+    [[nodiscard]] auto make_endpoints() const { return EndpointFactory(N, Allocator{}); }
+};
+
+TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
+    ((typename T, auto EndpointFactory, size_t N), T, EndpointFactory, N),
+    (int, cts::spsc::channel_bounded_fast<int>, 16),
+    (int, cts::spsc::channel_bounded<int>, 10)
+){
+    auto [sender, receiver] = this->make_endpoints();
 
     SECTION("default state") {
         REQUIRE(sender.is_full() == false);
@@ -35,22 +42,25 @@ TEST_CASE("basic channel")
         REQUIRE(receiver.size() == 0);
     }
 
-    for (size_t i = 0; i < channel_size; ++i) {
+    for (size_t i = 0; i < sender.capacity(); ++i) {
         sender.send(static_cast<int>(i));
     }
 
     SECTION("filled state") {
         REQUIRE(sender.is_full() == true);
-        REQUIRE(sender.size() == channel_size);
+        REQUIRE(sender.size() == sender.capacity());
         REQUIRE(receiver.is_empty() == false);
-        REQUIRE(receiver.size() == channel_size);
+        REQUIRE(receiver.size() == receiver.capacity());
     }
 }
 
-TEST_CASE("channel thrashing")
-{
+TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load]",
+    ((typename T, auto EndpointFactory, size_t N), T, EndpointFactory, N),
+    (int, cts::spsc::channel_bounded_fast<size_t>, 512),
+    (int, cts::spsc::channel_bounded<size_t>, 512)
+){
     constexpr size_t max_count = 8 * 1024 * 1024;
-    auto [sender, receiver] = cts::spsc::channel_bounded<size_t>(512);
+    auto [sender, receiver] = this->make_endpoints();
 
     auto producer = std::thread{[sender=std::move(sender)] mutable
     {
