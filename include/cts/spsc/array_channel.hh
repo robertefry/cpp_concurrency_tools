@@ -2,11 +2,8 @@
 #ifndef CTS_SPSC_ARRAY_CHANNEL_HH
 #define CTS_SPSC_ARRAY_CHANNEL_HH
 
-#include "channel_fwd.hh"
-
 #include <cstddef>
 #include <cassert>
-#include <memory>
 #include <atomic>
 
 namespace cts::spsc {
@@ -160,63 +157,6 @@ namespace cts::spsc {
         };
 
     } // namespace detail
-
-    template <typename T, typename IndexPolicy, typename Allocator>
-    class Sender<T,detail::ArrayChannel<T,IndexPolicy,Allocator>> {
-
-        using Channel = detail::ArrayChannel<T,IndexPolicy,Allocator>;
-        friend Channel;
-
-        std::shared_ptr<Channel> _channel;
-
-        explicit Sender(std::shared_ptr<Channel> channel)
-            : _channel{std::move(channel)}
-        {}
-
-    public:
-        Sender(Sender&&) noexcept = default;
-        Sender& operator=(Sender&&) noexcept = default;
-
-        [[nodiscard]] auto capacity() const { return _channel->capacity(); }
-        [[nodiscard]] auto size() const { return _channel->size(); }
-        [[nodiscard]] auto is_full() const { return _channel->is_full(); }
-
-        void send(T const& value) { _channel->send(value); }
-        void send(T&& value) { _channel->send(std::move(value)); }
-
-        template <typename... Args>
-        void send_emplace(Args&&... args) {
-            _channel->send_emplace(std::forward<Args>(args)...);
-        }
-
-    };
-
-    template <typename T, typename IndexPolicy, typename Allocator>
-    class Receiver<T,detail::ArrayChannel<T,IndexPolicy,Allocator>> {
-
-        using Channel = detail::ArrayChannel<T,IndexPolicy,Allocator>;
-        friend Channel;
-
-        std::shared_ptr<Channel> _channel;
-
-        explicit Receiver(std::shared_ptr<Channel> channel)
-            : _channel{std::move(channel)}
-        {}
-
-    public:
-        Receiver(Receiver&&) noexcept = default;
-        Receiver& operator=(Receiver&&) noexcept = default;
-
-        [[nodiscard]] auto capacity() const { return _channel->capacity(); }
-        [[nodiscard]] auto size() const { return _channel->size(); }
-        [[nodiscard]] auto is_empty() const { return _channel->is_empty(); }
-
-        [[nodiscard]] auto recv() { return _channel->recv(); }
-
-        void discard_next() { _channel->discard_next(); }
-        void discard_all() { _channel->discard_all(); }
-
-    };
 
     template <typename T, typename Allocator = std::allocator<T>>
     inline auto channel_bounded_fast(
