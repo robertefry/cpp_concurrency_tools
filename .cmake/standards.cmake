@@ -90,6 +90,8 @@ function(target_add_sanitized_catch_tests target)
   set(_san_flags_aubsan "-fno-omit-frame-pointer" "-fsanitize=address,undefined")
   set(_san_flags_tsan "-fno-omit-frame-pointer" "-fsanitize=thread")
 
+  # TODO: Ensure this actually selecting the correct triplet, instead of
+  # manually supplying compiler flags.
   set(_cfg_names "debug" "release")
   set(_cfg_flags_debug   "-Og" "-g")
   set(_cfg_flags_release "-O2" "-DNDEBUG")
@@ -107,7 +109,7 @@ function(target_add_sanitized_catch_tests target)
       target_compile_options(${_variant} PRIVATE ${_san_flags_${_san}} ${_cfg_flags_${_cfg}})
       target_link_options(${_variant} PRIVATE ${_san_flags_${_san}})
 
-      catch_discover_tests(${_variant})
+      catch_discover_tests(${_variant} TEST_PREFIX "${_variant}: ")
 
     endforeach()
   endforeach()
