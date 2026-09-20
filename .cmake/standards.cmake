@@ -11,6 +11,8 @@ if(NOT CMAKE_BUILD_TYPE IN_LIST VALID_BUILD_TYPES)
   message(FATAL_ERROR "Invalid build type: ${CMAKE_BUILD_TYPE}")
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 function(target_set_standards target)
 
   get_target_property(_target_type ${target} TYPE)
@@ -75,12 +77,12 @@ function(target_set_standards target)
 
 endfunction()
 
-function(target_add_sanitized_catch_tests target)
+function(target_add_catch_tests target)
 
   get_target_property(_type ${target} TYPE)
 
   if(NOT _type STREQUAL "INTERFACE_LIBRARY")
-    message(FATAL_ERROR "target_add_sanitized_catch_tests: '${target}' must be an INTERFACE library, got ${_type}")
+    message(FATAL_ERROR "target_add_catch_tests: '${target}' must be an INTERFACE library, got ${_type}")
   endif()
 
   get_target_property(_sources ${target} SOURCES)
