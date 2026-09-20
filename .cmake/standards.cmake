@@ -117,3 +117,23 @@ function(target_add_catch_tests target)
   endforeach()
 
 endfunction()
+
+function(target_add_catch_benchmarks target)
+
+  get_target_property(_type ${target} TYPE)
+
+  if(NOT _type STREQUAL "EXECUTABLE")
+    message(FATAL_ERROR "target_add_catch_benchmarks: '${target}' must be an executable, got ${_type}")
+  endif()
+
+  target_set_standards(${target})
+
+  add_test(
+    NAME ${target}
+    COMMAND ${target} "[!benchmark]"
+      --benchmark-samples 100
+      --benchmark-confidence-interval 0.95
+  )
+  set_tests_properties(${target} PROPERTIES LABELS "benchmark")
+
+endfunction()

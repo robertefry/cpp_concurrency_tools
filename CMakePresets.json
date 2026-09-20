@@ -1,0 +1,15 @@
+{
+    "version": 6,
+    "configurePresets": [
+        { "name": "default", "binaryDir": "${sourceDir}/.build" }
+    ],
+    "testPresets": [{
+        "name": "default",
+        "configurePreset": "default",
+        "filter": { "exclude": { "label": "benchmark" } }
+    },{
+        "name": "benchmarks",
+        "configurePreset": "default",
+        "filter": { "include": { "label": "benchmark" } }
+    }]
+}

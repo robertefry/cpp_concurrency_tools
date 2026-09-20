@@ -68,6 +68,5 @@ namespace cts::spsc {
 } // namespace cts::spsc
 
 #include "array_channel.hh"
-// #include "deque_channel.hh"
 
 #endif /* CTS_SPSC_CHANNEL_HH */
