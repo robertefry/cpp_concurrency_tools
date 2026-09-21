@@ -8,7 +8,7 @@
 #include <latch>
 #include <atomic>
 
-template <typename T, typename Channel>
+template <typename Channel>
 class ChannelThrasher {
 
     std::latch _sync {3}; // producer, consumer, this
@@ -32,8 +32,8 @@ public:
 
     explicit ChannelThrasher(
         size_t message_count,
-        cts::spsc::Sender<T,Channel> sender,
-        cts::spsc::Receiver<T,Channel> receiver
+        cts::spsc::Sender<size_t,Channel> sender,
+        cts::spsc::Receiver<size_t,Channel> receiver
     ){
         _started.clear();
 
@@ -56,7 +56,7 @@ public:
 
 private:
 
-    void producer_task(std::stop_token token, size_t message_count, cts::spsc::Sender<T,Channel>&& sender)
+    void producer_task(std::stop_token token, size_t message_count, cts::spsc::Sender<size_t,Channel>&& sender)
     {
         _sync.arrive_and_wait();
 
@@ -68,7 +68,7 @@ private:
         _done.count_down();
     }
 
-    void consumer_task(std::stop_token token, size_t message_count, cts::spsc::Receiver<T,Channel>&& receiver)
+    void consumer_task(std::stop_token token, size_t message_count, cts::spsc::Receiver<size_t,Channel>&& receiver)
     {
         _sync.arrive_and_wait();
 
