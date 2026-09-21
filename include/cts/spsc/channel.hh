@@ -25,6 +25,7 @@ namespace cts::spsc {
 
         [[nodiscard]] auto capacity() const { return _channel->capacity(); }
         [[nodiscard]] auto size() const { return _channel->size(); }
+        [[nodiscard]] auto is_empty() const { return _channel->is_empty(); }
         [[nodiscard]] auto is_full() const { return _channel->is_full(); }
 
         void send(T const& value) { _channel->send(value); }
@@ -57,6 +58,7 @@ namespace cts::spsc {
         [[nodiscard]] auto capacity() const { return _channel->capacity(); }
         [[nodiscard]] auto size() const { return _channel->size(); }
         [[nodiscard]] auto is_empty() const { return _channel->is_empty(); }
+        [[nodiscard]] auto is_full() const { return _channel->is_full(); }
 
         [[nodiscard]] auto recv() { return _channel->recv(); }
 
