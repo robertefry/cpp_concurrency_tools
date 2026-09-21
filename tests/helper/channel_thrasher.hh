@@ -31,18 +31,18 @@ public:
     ChannelThrasher& operator=(ChannelThrasher const&) = delete;
 
     explicit ChannelThrasher(
-        size_t max_count,
+        size_t message_count,
         cts::spsc::Sender<T,Channel> sender,
         cts::spsc::Receiver<T,Channel> receiver
     ){
         _started.clear();
 
-        _producer = std::jthread{[this, max_count, sender = std::move(sender)](std::stop_token token) mutable {
-            this->producer_task(token, max_count, std::move(sender));
+        _producer = std::jthread{[this, message_count, sender = std::move(sender)](std::stop_token token) mutable {
+            this->producer_task(token, message_count, std::move(sender));
         }};
 
-        _consumer = std::jthread{[this, max_count, receiver = std::move(receiver)](std::stop_token token) mutable {
-            this->consumer_task(token, max_count, std::move(receiver));
+        _consumer = std::jthread{[this, message_count, receiver = std::move(receiver)](std::stop_token token) mutable {
+            this->consumer_task(token, message_count, std::move(receiver));
         }};
     }
 
@@ -56,11 +56,11 @@ public:
 
 private:
 
-    void producer_task(std::stop_token token, size_t max_count, cts::spsc::Sender<T,Channel>&& sender)
+    void producer_task(std::stop_token token, size_t message_count, cts::spsc::Sender<T,Channel>&& sender)
     {
         _sync.arrive_and_wait();
 
-        for (size_t counter = 0; counter < max_count;) {
+        for (size_t counter = 0; counter < message_count;) {
             if (token.stop_requested()) { return; }
             if (not sender.is_full()) { sender.send(counter++); }
             std::this_thread::yield();
@@ -68,11 +68,11 @@ private:
         _done.count_down();
     }
 
-    void consumer_task(std::stop_token token, size_t max_count, cts::spsc::Receiver<T,Channel>&& receiver)
+    void consumer_task(std::stop_token token, size_t message_count, cts::spsc::Receiver<T,Channel>&& receiver)
     {
         _sync.arrive_and_wait();
 
-        for (size_t counter = 0; counter < max_count;) {
+        for (size_t counter = 0; counter < message_count;) {
             if (token.stop_requested()) { return; }
             if (not receiver.is_empty() && receiver.recv() != counter++) { return; }
             std::this_thread::yield();

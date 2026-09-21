@@ -55,9 +55,9 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load]",
     (size_t, ([]{ return cts::spsc::channel_bounded_fast<size_t>(512); }), "cts::spsc::channel_bounded_fast"),
     (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(512); }), "cts::spsc::channel_bounded")
 ){
-    constexpr size_t max_count = 8 * 1024 * 1024;
+    constexpr size_t message_count = 8 * 1024 * 1024;
     auto [sender, receiver] = this->make_endpoints();
 
-    auto thrasher = ChannelThrasher{max_count, std::move(sender), std::move(receiver)};
+    auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
     REQUIRE(std::move(thrasher).run());
 }

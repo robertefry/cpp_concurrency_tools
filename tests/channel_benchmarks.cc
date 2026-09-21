@@ -16,19 +16,19 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "benchmark channel", "[!benchmark]
     (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(57); }), "cts::spsc::channel_bounded")
 ){
     // TODO: use a shared base class to allow a catch2 GENERATE expression here
-    constexpr size_t max_count = 1024;
+    constexpr size_t message_count = 1024;
     static constexpr auto bench_name = name.fixture_name();
     static constexpr auto bench_reference = "channel_reference_with_mutex";
 
     BENCHMARK_ADVANCED(bench_name)(Catch::Benchmark::Chronometer meter) {
         auto [sender, receiver] = this->make_endpoints();
-        auto thrasher = ChannelThrasher{max_count, std::move(sender), std::move(receiver)};
+        auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
         meter.measure([&]{ std::move(thrasher).run(); });
     };
 
     BENCHMARK_ADVANCED(bench_reference)(Catch::Benchmark::Chronometer meter) {
         auto [sender, receiver] = ChannelReference<T>::make_endpoints();
-        auto thrasher = ChannelThrasher{max_count, std::move(sender), std::move(receiver)};
+        auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
         meter.measure([&]{ std::move(thrasher).run(); });
     };
 
