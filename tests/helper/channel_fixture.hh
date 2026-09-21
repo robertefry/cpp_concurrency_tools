@@ -2,30 +2,18 @@
 #ifndef CTS_TESTS_HELPER_CHANNEL_FIXTURE_HH
 #define CTS_TESTS_HELPER_CHANNEL_FIXTURE_HH
 
-#include <tuple>
-#include <type_traits>
-#include <algorithm>
-#include <utility>
+#include "fixed_string.hh"
 
-template <size_t N>
-struct FixtureName {
-    char _value[N];
-    constexpr FixtureName(char const (&name)[N]) { std::copy_n(name, N, _value); }
-    constexpr operator char const*() const { return _value; }
-    [[nodiscard]] constexpr auto fixture_name() const { return _value; }
-    [[nodiscard]] constexpr auto operator<=>(FixtureName const&) const = default;
-};
-
-template <typename T, auto EndpointFactory, FixtureName name>
+template <auto EndpointFactory
+    , FixedString name = "unnamed channel fixture"
+>
 struct ChannelFixture {
 
-    using Sender = std::tuple_element_t<0,decltype(EndpointFactory())>;
-    static_assert(std::is_same_v<T, typename Sender::value_type>);
+    using Endpoints  = std::remove_cvref_t<decltype(EndpointFactory())>;
+    using Sender     = std::tuple_element_t<0, Endpoints>;
+    using Receiver   = std::tuple_element_t<1, Endpoints>;
 
-    using Receiver = std::tuple_element_t<1,decltype(EndpointFactory())>;
-    static_assert(std::is_same_v<T, typename Receiver::value_type>);
-
-    [[nodiscard]] constexpr static auto fixture_name() const { return name.fixture_name(); }
+    [[nodiscard]] constexpr auto fixture_name() const { return std::string_view{name}; }
 
     template <typename... Args>
     [[nodiscard]] auto make_endpoints(Args&&... args) const {

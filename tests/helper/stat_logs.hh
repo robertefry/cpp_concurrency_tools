@@ -7,25 +7,28 @@
 
 #include <catch2/catch_all.hpp>
 
-struct StatLogs : Catch::EventListenerBase
-{
-    using EventListenerBase::EventListenerBase;
+class BenchmarkStats : public Catch::EventListenerBase {
 
-    using StatsLog = std::unordered_map<std::string,Catch::BenchmarkStats<>>;
-    static inline StatsLog _stats_log {};
-
-    void benchmarkEnded(Catch::BenchmarkStats<> const& s) override {
-        _stats_log[s.info.name] = s;
-    }
+    using Logs = std::unordered_map<std::string,Catch::BenchmarkStats<>>;
+    static inline Logs _logs {};
 
 public:
+    using EventListenerBase::EventListenerBase;
+
+    void benchmarkEnded(Catch::BenchmarkStats<> const& s) override {
+        _logs[s.info.name] = s;
+    }
+
+    static auto has(std::string benchmark) {
+        return _logs.contains(benchmark);
+    }
 
     static auto get(std::string benchmark) {
-        return _stats_log.at(benchmark);
+        return _logs.at(benchmark);
     }
 
 };
 
-CATCH_REGISTER_LISTENER(StatLogs);
+CATCH_REGISTER_LISTENER(BenchmarkStats);
 
 #endif /* CTS_TESTS_HELPER_STAT_LOGS_HH */

@@ -7,9 +7,9 @@
 #include <catch2/catch_all.hpp>
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
-    ((typename T, auto EndpointFactory, FixtureName name), T, EndpointFactory, name),
-    (int, ([]{ return cts::spsc::channel_bounded_fast<int>(16); }), "cts::spsc::channel_bounded_fast"),
-    (int, ([]{ return cts::spsc::channel_bounded<int>(10); }), "cts::spsc::channel_bounded")
+    ((auto EndpointFactory), EndpointFactory),
+    []{ return cts::spsc::channel_bounded_fast<int>(16); },
+    []{ return cts::spsc::channel_bounded<int>(10); }
 ){
     auto [sender, receiver] = this->make_endpoints();
 
@@ -51,9 +51,9 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
 }
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load]",
-    ((typename T, auto EndpointFactory, FixtureName name), T, EndpointFactory, name),
-    (size_t, ([]{ return cts::spsc::channel_bounded_fast<size_t>(512); }), "cts::spsc::channel_bounded_fast"),
-    (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(512); }), "cts::spsc::channel_bounded")
+    ((auto EndpointFactory), EndpointFactory),
+    []{ return cts::spsc::channel_bounded_fast<size_t>(512); },
+    []{ return cts::spsc::channel_bounded<size_t>(512); }
 ){
     constexpr size_t message_count = 8 * 1024 * 1024;
     auto [sender, receiver] = this->make_endpoints();

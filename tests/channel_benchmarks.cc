@@ -10,29 +10,26 @@
 #include <type_traits>
 #include <catch2/catch_all.hpp>
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "benchmark channel", "[!benchmark]",
-    ((typename T, auto EndpointFactory, FixtureName name), T, EndpointFactory, name),
-    (size_t, ([]{ return cts::spsc::channel_bounded_fast<size_t>(64); }), "cts::spsc::channel_bounded_fast"),
-    (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(57); }), "cts::spsc::channel_bounded")
-){
-    // TODO: use a shared base class to allow a catch2 GENERATE expression here
+TEST_CASE("benchmark channels", "[!benchmark]")
+{
     constexpr size_t message_count = 1024;
-    static constexpr auto bench_name = name.fixture_name();
-    static constexpr auto bench_reference = "channel_reference_with_mutex";
+    static constexpr auto reference_name = "channel_reference_with_mutex";
 
-    BENCHMARK_ADVANCED(bench_name)(Catch::Benchmark::Chronometer meter) {
-        auto [sender, receiver] = this->make_endpoints();
-        auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
-        meter.measure([&]{ std::move(thrasher).run(); });
+    constexpr auto benchmark_endpoints = [](char const* name, auto endpoint_factory)
+    {
+        BENCHMARK_ADVANCED(name)(Catch::Benchmark::Chronometer meter) {
+            auto [sender, receiver] = endpoint_factory();
+            auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
+            meter.measure([&]{ std::move(thrasher).run(); });
+        };
+        if (name != reference_name) {
+            auto const reference_limit = BenchmarkStats::get(reference_name).mean.lower_bound;
+            auto const mean_upper_bound = BenchmarkStats::get(name).mean.upper_bound;
+            CAPTURE(name); CHECK(mean_upper_bound < reference_limit);
+        }
     };
 
-    BENCHMARK_ADVANCED(bench_reference)(Catch::Benchmark::Chronometer meter) {
-        auto [sender, receiver] = ChannelReference<T>::make_endpoints();
-        auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
-        meter.measure([&]{ std::move(thrasher).run(); });
-    };
-
-    auto mean_bench = StatLogs::get(bench_name).mean;
-    auto mean_reference = StatLogs::get(bench_reference).mean;
-    REQUIRE(mean_bench.upper_bound <= mean_reference.lower_bound);
+    benchmark_endpoints(reference_name, []{ return ChannelReference<size_t>::make_endpoints(); });
+    benchmark_endpoints("cts::spsc::channel_bounded_fast", []{ return cts::spsc::channel_bounded_fast<size_t>(64); });
+    benchmark_endpoints("cts::spsc::channel_bounded",      []{ return cts::spsc::channel_bounded<size_t>(64); });
 }
