@@ -11,12 +11,13 @@
 #include <catch2/catch_all.hpp>
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "benchmark channel", "[!benchmark]",
-    ((typename T, auto EndpointFactory), T, EndpointFactory),
-    (size_t, ([]{ return cts::spsc::channel_bounded_fast<size_t>(64); })),
-    (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(57); }))
+    ((typename T, auto EndpointFactory, FixtureName name), T, EndpointFactory, name),
+    (size_t, ([]{ return cts::spsc::channel_bounded_fast<size_t>(64); }), "cts::spsc::channel_bounded_fast"),
+    (size_t, ([]{ return cts::spsc::channel_bounded<size_t>(57); }), "cts::spsc::channel_bounded")
 ){
+    // TODO: use a shared base class to allow a catch2 GENERATE expression here
     constexpr size_t max_count = 1024;
-    static constexpr auto bench_name = "cts::spsc::channel";
+    static constexpr auto bench_name = name.fixture_name();
     static constexpr auto bench_reference = "channel_reference_with_mutex";
 
     BENCHMARK_ADVANCED(bench_name)(Catch::Benchmark::Chronometer meter) {
