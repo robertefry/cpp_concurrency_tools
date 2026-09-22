@@ -2,6 +2,8 @@
 #ifndef CTS_SPSC_CHANNEL_HH
 #define CTS_SPSC_CHANNEL_HH
 
+#include "detail/ring_channel.hh"
+
 #include <memory>
 
 namespace cts::spsc {
@@ -67,8 +69,24 @@ namespace cts::spsc {
 
     };
 
-} // namespace cts::spsc
+    template <typename T, typename Allocator = std::allocator<T>>
+    inline auto channel_bounded_fast(
+        size_t capacity,
+        Allocator const& allocator = Allocator{}
+    ) {
+        using Channel = detail::RingChannel<T,detail::IndexPolicyMasking,Allocator>;
+        return Channel::make_endpoints(capacity, allocator);
+    }
 
-#include "array_channel.hh"
+    template <typename T, typename Allocator = std::allocator<T>>
+    inline auto channel_bounded(
+        size_t capacity,
+        Allocator const& allocator = Allocator{}
+    ) {
+        using Channel = detail::RingChannel<T,detail::IndexPolicyModulo,Allocator>;
+        return Channel::make_endpoints(capacity, allocator);
+    }
+
+} // namespace cts::spsc
 
 #endif /* CTS_SPSC_CHANNEL_HH */
