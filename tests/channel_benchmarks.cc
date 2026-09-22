@@ -1,5 +1,5 @@
 
-#include "cts/spsc/channel.hh"
+#include "cts/spsc_channel.hh"
 
 #include "helper/stat_logs.hh"
 #include "helper/channel_fixture.hh"
@@ -15,10 +15,10 @@ TEST_CASE("benchmark channels", "[!benchmark]")
     constexpr size_t message_count = 1024;
     static constexpr auto reference_name = "channel_reference_with_mutex";
 
-    constexpr auto benchmark_endpoints = [](char const* name, auto endpoint_factory)
+    constexpr auto benchmark_endpoints = [](char const* name, auto channel_factory)
     {
         BENCHMARK_ADVANCED(name)(Catch::Benchmark::Chronometer meter) {
-            auto [sender, receiver] = endpoint_factory();
+            auto [sender, receiver] = channel_factory().into_endpoints();
             auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
             meter.measure([&]{ std::move(thrasher).run(); });
         };
@@ -29,7 +29,7 @@ TEST_CASE("benchmark channels", "[!benchmark]")
         }
     };
 
-    benchmark_endpoints(reference_name, []{ return ChannelReference<size_t>::make_endpoints(); });
+    benchmark_endpoints(reference_name, []{ return ReferenceChannel<size_t>{}; });
     benchmark_endpoints("cts::spsc::channel_bounded_fast", []{ return cts::spsc::channel_bounded_fast<size_t>(64); });
     benchmark_endpoints("cts::spsc::channel_bounded",      []{ return cts::spsc::channel_bounded<size_t>(64); });
 }

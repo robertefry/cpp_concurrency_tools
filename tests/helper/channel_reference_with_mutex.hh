@@ -2,65 +2,100 @@
 #ifndef CTS_TESTS_HELPER_CHANNEL_REFERENCE_HH
 #define CTS_TESTS_HELPER_CHANNEL_REFERENCE_HH
 
-#include "cts/spsc/channel.hh"
+#include "cts/channel.hh"
 
 #include <deque>
 #include <mutex>
 #include <limits>
 
+template <typename T> struct ReferenceTx;
+template <typename T> struct ReferenceRx;
+
 template <typename T>
-class ChannelReference {
+struct ReferenceChannel {
 
-    std::deque<T> _buffer {};
-    mutable std::mutex _mutex {};
+    std::deque<T> buffer_ {};
+    mutable std::mutex mutex_ {};
 
-public:
+    explicit ReferenceChannel() = default;
 
-    [[nodiscard]] static auto make_endpoints()
-    {
-        auto channel = std::make_shared<ChannelReference<T>>();
+    ReferenceChannel(ReferenceChannel&& other) noexcept
+        : buffer_{other.buffer_}
+    {}
+
+    ReferenceChannel& operator=(ReferenceChannel&& other) noexcept {
+        std::swap(buffer_, other.buffer_);
+    }
+
+    [[nodiscard]] auto into_endpoints() && {
+        using Channel = std::remove_cvref_t<decltype(*this)>;
+        auto channel = std::make_shared<Channel>(std::move(*this));
         return std::tuple{
-            cts::spsc::Sender<T,ChannelReference<T>>{channel},
-            cts::spsc::Receiver<T,ChannelReference<T>>{channel}
+            ReferenceTx{ .channel_ = channel }, ReferenceRx{ .channel_ = channel }
         };
     }
 
-    [[nodiscard]] auto capacity() const { return std::numeric_limits<size_t>::max(); }
-
-    [[nodiscard]] auto size() const -> size_t {
-        std::scoped_lock lock {_mutex};
-        return _buffer.size();
+    [[nodiscard]] auto size() const {
+        auto const lock = std::scoped_lock{mutex_};
+        return buffer_.size();
     }
 
-    [[nodiscard]] bool is_empty() const { return size() == 0; }
-    [[nodiscard]] bool is_full() const { return size() == capacity(); }
+    [[nodiscard]] auto is_full() const {
+        auto const lock = std::scoped_lock{mutex_};
+        return false;
+    }
+
+    [[nodiscard]] auto is_empty() const {
+        auto const lock = std::scoped_lock{mutex_};
+        return buffer_.empty();
+    }
+
+};
+
+template <typename T>
+struct ReferenceTx {
+
+    std::shared_ptr<ReferenceChannel<T>> channel_;
+
+    [[nodiscard]] auto size() const noexcept { return channel_->size(); }
+    [[nodiscard]] auto is_empty() const noexcept { return channel_->is_empty(); }
+    [[nodiscard]] auto is_full() const noexcept { return channel_->is_full(); }
 
     void send(T const& value) { send_emplace(value); }
     void send(T&& value) { send_emplace(std::move(value)); }
 
     template <typename... Args>
     void send_emplace(Args&&... args) {
-        std::scoped_lock lock {_mutex};
-        _buffer.emplace_back(std::forward<Args>(args)...);
+        auto const lock = std::scoped_lock{channel_->mutex_};
+        channel_->buffer_.emplace_back(std::forward<Args>(args)...);
     }
 
-    [[nodiscard]] auto recv() -> T {
-        assert(not is_empty());
-        std::scoped_lock lock {_mutex};
-        auto value = std::move(_buffer.front());
-        _buffer.pop_front();
+};
+
+template <typename T>
+struct ReferenceRx {
+
+    std::shared_ptr<ReferenceChannel<T>> channel_;
+
+    [[nodiscard]] auto size() const noexcept { return channel_->size(); }
+    [[nodiscard]] auto is_empty() const noexcept { return channel_->is_empty(); }
+    [[nodiscard]] auto is_full() const noexcept { return channel_->is_full(); }
+
+    [[nodiscard]] auto recv() {
+        auto const lock = std::scoped_lock{channel_->mutex_};
+        auto const value = channel_->buffer_.front();
+        channel_->buffer_.pop_front();
         return value;
     }
 
     void discard_next() {
-        assert(not is_empty());
-        std::scoped_lock lock {_mutex};
-        _buffer.pop_front();
+        auto const lock = std::scoped_lock{channel_->mutex_};
+        channel_->buffer_.pop_front();
     }
 
     void discard_all() {
-        std::scoped_lock lock {_mutex};
-        _buffer.clear();
+        auto const lock = std::scoped_lock{channel_->mutex_};
+        channel_->buffer_.clear();
     }
 
 };

@@ -1,5 +1,5 @@
 
-#include "cts/spsc/channel.hh"
+#include "cts/spsc_channel.hh"
 
 #include "helper/channel_fixture.hh"
 #include "helper/channel_thrasher.hh"
@@ -8,8 +8,8 @@
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
     ((auto EndpointFactory), EndpointFactory),
-    []{ return cts::spsc::channel_bounded_fast<int>(16); },
-    []{ return cts::spsc::channel_bounded<int>(10); }
+    []{ return cts::spsc::channel_bounded_fast<int>(16).into_endpoints(); },
+    []{ return cts::spsc::channel_bounded<int>(10).into_endpoints(); }
 ){
     auto [sender, receiver] = this->make_endpoints();
 
@@ -52,8 +52,8 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load]",
     ((auto EndpointFactory), EndpointFactory),
-    []{ return cts::spsc::channel_bounded_fast<size_t>(512); },
-    []{ return cts::spsc::channel_bounded<size_t>(512); }
+    []{ return cts::spsc::channel_bounded_fast<size_t>(512).into_endpoints(); },
+    []{ return cts::spsc::channel_bounded<size_t>(512).into_endpoints(); }
 ){
     constexpr size_t message_count = 8 * 1024 * 1024;
     auto [sender, receiver] = this->make_endpoints();

@@ -2,13 +2,11 @@
 #ifndef CTS_TESTS_HELPER_CHANNEL_THRASHER_HH
 #define CTS_TESTS_HELPER_CHANNEL_THRASHER_HH
 
-#include "cts/spsc/channel.hh"
-
 #include <thread>
 #include <latch>
 #include <atomic>
 
-template <typename Channel>
+template <typename Tx, typename Rx>
 class ChannelThrasher {
 
     std::latch _sync {3}; // producer, consumer, this
@@ -30,19 +28,16 @@ public:
     ChannelThrasher(ChannelThrasher const&) = delete;
     ChannelThrasher& operator=(ChannelThrasher const&) = delete;
 
-    explicit ChannelThrasher(
-        size_t message_count,
-        cts::spsc::Sender<size_t,Channel> sender,
-        cts::spsc::Receiver<size_t,Channel> receiver
-    ){
+    explicit ChannelThrasher(size_t message_count, Tx tx, Rx rx)
+    {
         _started.clear();
 
-        _producer = std::jthread{[this, message_count, sender = std::move(sender)](std::stop_token token) mutable {
-            this->producer_task(token, message_count, std::move(sender));
+        _producer = std::jthread{[this, message_count, tx = std::move(tx)](std::stop_token token) mutable {
+            this->producer_task(token, message_count, std::move(tx));
         }};
 
-        _consumer = std::jthread{[this, message_count, receiver = std::move(receiver)](std::stop_token token) mutable {
-            this->consumer_task(token, message_count, std::move(receiver));
+        _consumer = std::jthread{[this, message_count, rx = std::move(rx)](std::stop_token token) mutable {
+            this->consumer_task(token, message_count, std::move(rx));
         }};
     }
 
@@ -56,25 +51,25 @@ public:
 
 private:
 
-    void producer_task(std::stop_token token, size_t message_count, cts::spsc::Sender<size_t,Channel>&& sender)
+    void producer_task(std::stop_token token, size_t message_count, Tx&& tx)
     {
         _sync.arrive_and_wait();
 
         for (size_t counter = 0; counter < message_count;) {
             if (token.stop_requested()) { return; }
-            if (not sender.is_full()) { sender.send(counter++); }
+            if (not tx.is_full()) { tx.send(counter++); }
             std::this_thread::yield();
         }
         _done.count_down();
     }
 
-    void consumer_task(std::stop_token token, size_t message_count, cts::spsc::Receiver<size_t,Channel>&& receiver)
+    void consumer_task(std::stop_token token, size_t message_count, Rx&& rx)
     {
         _sync.arrive_and_wait();
 
         for (size_t counter = 0; counter < message_count;) {
             if (token.stop_requested()) { return; }
-            if (not receiver.is_empty() && receiver.recv() != counter++) { return; }
+            if (not rx.is_empty() && rx.recv() != counter++) { return; }
             std::this_thread::yield();
         }
         _success.store(true, std::memory_order_release);

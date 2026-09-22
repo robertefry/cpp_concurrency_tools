@@ -9,9 +9,7 @@ template <auto EndpointFactory
 >
 struct ChannelFixture {
 
-    using Endpoints  = std::remove_cvref_t<decltype(EndpointFactory())>;
-    using Sender     = std::tuple_element_t<0, Endpoints>;
-    using Receiver   = std::tuple_element_t<1, Endpoints>;
+    using Endpoints = std::remove_cvref_t<decltype(EndpointFactory())>;
 
     [[nodiscard]] constexpr auto fixture_name() const { return std::string_view{name}; }
 
