@@ -58,8 +58,8 @@
                 [[no_unique_address]] IndexPolicy index_policy_;
 
                 static constexpr size_t cache_line = std::hardware_destructive_interference_size;
-                alignas(cache_line) std::atomic_size_t tx_count_;
-                alignas(cache_line) std::atomic_size_t rx_count_;
+                alignas(cache_line) std::atomic_uint64_t tx_count_;
+                alignas(cache_line) std::atomic_uint64_t rx_count_;
 
             public:
 
