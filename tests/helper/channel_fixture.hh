@@ -4,18 +4,19 @@
 
 #include "fixed_string.hh"
 
-template <auto EndpointFactory
+template <auto ChannelFactory
     , FixedString name = "unnamed channel fixture"
 >
 struct ChannelFixture {
 
-    using Endpoints = std::remove_cvref_t<decltype(EndpointFactory())>;
+    using Channel = std::remove_cvref_t<decltype(ChannelFactory())>;
+    using Endpoints = std::remove_cvref_t<decltype(ChannelFactory().into_endpoints())>;
 
     [[nodiscard]] constexpr auto fixture_name() const { return std::string_view{name}; }
 
     template <typename... Args>
-    [[nodiscard]] auto make_endpoints(Args&&... args) const {
-        return EndpointFactory(std::forward<Args>(args)...);
+    [[nodiscard]] auto make_channel(Args&&... args) const {
+        return ChannelFactory(std::forward<Args>(args)...);
     }
 
 };

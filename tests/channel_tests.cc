@@ -7,11 +7,12 @@
 #include <catch2/catch_all.hpp>
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[unit][channel]",
-    ((auto EndpointFactory), EndpointFactory),
-    []{ return cts::spsc::channel_bounded_fast<int>(16).into_endpoints(); },
-    []{ return cts::spsc::channel_bounded<int>(10).into_endpoints(); }
+    ((auto ChannelFactory), ChannelFactory)
+    , []{ return cts::spsc::channel_bounded_fast<int>(16); }
+    , []{ return cts::spsc::channel_bounded<int>(16); }
+    , []{ return cts::spsc::channel_bounded<int>(10); }
 ){
-    auto [sender, receiver] = this->make_endpoints();
+    auto [sender, receiver] = this->make_channel().into_endpoints();
 
     SECTION("default state") {
         REQUIRE(sender.is_full() == false);
@@ -48,15 +49,19 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[
         REQUIRE(receiver.is_empty() == false);
         REQUIRE(receiver.size() == receiver.capacity());
     }
+
+    for (size_t i = 0; not receiver.is_empty(); ++i) {
+        REQUIRE(receiver.recv() == static_cast<int>(i));
+    }
 }
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][channel]",
-    ((auto EndpointFactory), EndpointFactory),
-    []{ return cts::spsc::channel_bounded_fast<size_t>(512).into_endpoints(); },
-    []{ return cts::spsc::channel_bounded<size_t>(512).into_endpoints(); }
+    ((auto ChannelFactory), ChannelFactory)
+    , []{ return cts::spsc::channel_bounded_fast<size_t>(512); }
+    , []{ return cts::spsc::channel_bounded<size_t>(512); }
 ){
     constexpr size_t message_count = 8 * 1024 * 1024;
-    auto [sender, receiver] = this->make_endpoints();
+    auto [sender, receiver] = this->make_channel().into_endpoints();
 
     auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
     REQUIRE(std::move(thrasher).run());
