@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("benchmark channels", "[!benchmark]")
+TEST_CASE("channel benchmarks", "[!benchmark][channel]")
 {
     constexpr size_t message_count = 1024;
     static constexpr auto reference_name = "channel_reference_with_mutex";

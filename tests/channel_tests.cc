@@ -6,7 +6,7 @@
 
 #include <catch2/catch_all.hpp>
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
+TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[unit][channel]",
     ((auto EndpointFactory), EndpointFactory),
     []{ return cts::spsc::channel_bounded_fast<int>(16).into_endpoints(); },
     []{ return cts::spsc::channel_bounded<int>(10).into_endpoints(); }
@@ -50,7 +50,7 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "basic channel", "[unit]",
     }
 }
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load]",
+TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][channel]",
     ((auto EndpointFactory), EndpointFactory),
     []{ return cts::spsc::channel_bounded_fast<size_t>(512).into_endpoints(); },
     []{ return cts::spsc::channel_bounded<size_t>(512).into_endpoints(); }
