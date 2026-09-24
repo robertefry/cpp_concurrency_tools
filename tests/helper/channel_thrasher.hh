@@ -2,80 +2,109 @@
 #ifndef CTS_TESTS_HELPER_CHANNEL_THRASHER_HH
 #define CTS_TESTS_HELPER_CHANNEL_THRASHER_HH
 
+#include <chrono>
 #include <thread>
+#include <future>
 #include <latch>
 #include <atomic>
 
-template <typename Tx, typename Rx>
 class ChannelThrasher {
 
-    std::latch _sync {3}; // producer, consumer, this
-    std::latch _done {2}; // producer, consumer
-    std::atomic_flag _started {};
-
-    std::atomic_bool _success = false;
-
-    std::jthread _producer {};
-    std::jthread _consumer {};
+    template <typename Tx, typename Rx>
+    class Runner;
 
 public:
-    ~ChannelThrasher() {
-        _producer.request_stop();
-        _consumer.request_stop();
-        if (not _started.test_and_set()) { _sync.count_down(); }
+
+    size_t message_count = 0;
+    std::chrono::nanoseconds producer_work_time {0};
+    std::chrono::nanoseconds consumer_work_time {0};
+
+    template <typename Tx, typename Rx>
+    [[nodiscard]] auto setup(Tx&& tx, Rx&& rx) const -> Runner<Tx,Rx>;
+
+};
+
+template <typename Tx, typename Rx>
+class ChannelThrasher::Runner {
+
+    ChannelThrasher config_;
+    Tx tx_;
+    Rx rx_;
+
+    std::latch sync_{3};
+    std::latch done_{2};
+    std::atomic_flag started_{};
+
+    std::atomic<bool> success_ = false;
+
+    std::jthread producer_{};
+    std::jthread consumer_{};
+
+public:
+
+    ~Runner() {
+        producer_.request_stop();
+        consumer_.request_stop();
+        if (not started_.test_and_set()) { sync_.count_down(); }
     }
 
-    ChannelThrasher(ChannelThrasher const&) = delete;
-    ChannelThrasher& operator=(ChannelThrasher const&) = delete;
+    Runner(Runner&&) = delete;
+    Runner& operator=(Runner&&) = delete;
 
-    explicit ChannelThrasher(size_t message_count, Tx tx, Rx rx)
+    Runner(ChannelThrasher config, Tx tx, Rx rx)
+        : config_{std::move(config)}
+        , tx_{std::move(tx)}
+        , rx_{std::move(rx)}
     {
-        _started.clear();
+        started_.clear();
 
-        _producer = std::jthread{[this, message_count, tx = std::move(tx)](std::stop_token token) mutable {
-            this->producer_task(token, message_count, std::move(tx));
-        }};
-
-        _consumer = std::jthread{[this, message_count, rx = std::move(rx)](std::stop_token token) mutable {
-            this->consumer_task(token, message_count, std::move(rx));
-        }};
+        producer_ = std::jthread{[this](std::stop_token token){ this->producer_task(token); }};
+        consumer_ = std::jthread{[this](std::stop_token token){ this->consumer_task(token); }};
     }
 
-    auto run() && -> bool {
-        if (not _started.test_and_set()) {
-            _sync.arrive_and_wait();
-            _done.wait();
+    void run_blocking() {
+        if (not started_.test_and_set()) {
+            sync_.arrive_and_wait();
+            done_.wait();
         }
-        return _success.load(std::memory_order_acquire);
+    }
+
+    auto success() const {
+        return success_.load(std::memory_order_acquire);
     }
 
 private:
 
-    void producer_task(std::stop_token token, size_t message_count, Tx&& tx)
-    {
-        _sync.arrive_and_wait();
+    void producer_task(std::stop_token token) {
+        sync_.arrive_and_wait();
 
-        for (size_t counter = 0; counter < message_count;) {
+        for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (not tx.is_full()) { tx.send(counter++); }
+            if (not tx_.is_full()) { tx_.send(counter++); }
+            std::this_thread::sleep_for(config_.producer_work_time);
             std::this_thread::yield();
         }
-        _done.count_down();
+        done_.count_down();
     }
 
-    void consumer_task(std::stop_token token, size_t message_count, Rx&& rx)
-    {
-        _sync.arrive_and_wait();
+    void consumer_task(std::stop_token token) {
+        sync_.arrive_and_wait();
 
-        for (size_t counter = 0; counter < message_count;) {
+        for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (not rx.is_empty() && rx.recv() != counter++) { return; }
+            if (not rx_.is_empty() && rx_.recv() != counter++) { return; }
+            std::this_thread::sleep_for(config_.consumer_work_time);
             std::this_thread::yield();
         }
-        _success.store(true, std::memory_order_release);
-        _done.count_down();
+        success_.store(true, std::memory_order_release);
+        done_.count_down();
     }
 
+};
+
+template <typename Tx, typename Rx>
+auto ChannelThrasher::setup(Tx&& tx, Rx&& rx) const -> Runner<Tx,Rx> {
+    return Runner{*this, std::forward<Tx>(tx), std::forward<Rx>(rx)};
 };
 
 #endif /* CTS_TESTS_HELPER_CHANNEL_THRASHER_HH */

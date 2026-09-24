@@ -12,55 +12,55 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[
     , []{ return cts::spsc::channel_bounded<int>(16); }
     , []{ return cts::spsc::channel_bounded<int>(10); }
 ){
-    auto [sender, receiver] = this->make_channel().into_endpoints();
+    auto [tx,rx] = this->make_channel().into_endpoints();
 
     SECTION("default state") {
-        REQUIRE(sender.is_full() == false);
-        REQUIRE(sender.size() == 0);
-        REQUIRE(receiver.is_empty() == true);
-        REQUIRE(receiver.size() == 0);
+        REQUIRE(tx.is_full() == false);
+        REQUIRE(tx.size() == 0);
+        REQUIRE(rx.is_empty() == true);
+        REQUIRE(rx.size() == 0);
     }
 
-    sender.send(42);
+    tx.send(42);
 
     SECTION("non-empty state") {
-        REQUIRE(sender.is_full() == false);
-        REQUIRE(sender.size() == 1);
-        REQUIRE(receiver.is_empty() == false);
-        REQUIRE(receiver.size() == 1);
+        REQUIRE(tx.is_full() == false);
+        REQUIRE(tx.size() == 1);
+        REQUIRE(rx.is_empty() == false);
+        REQUIRE(rx.size() == 1);
     }
 
-    REQUIRE(receiver.recv() == 42);
+    REQUIRE(rx.recv() == 42);
 
     SECTION("emptied state") {
-        REQUIRE(sender.is_full() == false);
-        REQUIRE(sender.size() == 0);
-        REQUIRE(receiver.is_empty() == true);
-        REQUIRE(receiver.size() == 0);
+        REQUIRE(tx.is_full() == false);
+        REQUIRE(tx.size() == 0);
+        REQUIRE(rx.is_empty() == true);
+        REQUIRE(rx.size() == 0);
     }
 
-    for (size_t i = 0; i < sender.capacity(); ++i) {
-        sender.send(static_cast<int>(i));
+    for (size_t i = 0; i < tx.capacity(); ++i) {
+        tx.send(static_cast<int>(i));
     }
 
     SECTION("filled state") {
-        REQUIRE(sender.is_full() == true);
-        REQUIRE(sender.size() == sender.capacity());
-        REQUIRE(receiver.is_empty() == false);
-        REQUIRE(receiver.size() == receiver.capacity());
+        REQUIRE(tx.is_full() == true);
+        REQUIRE(tx.size() == tx.capacity());
+        REQUIRE(rx.is_empty() == false);
+        REQUIRE(rx.size() == rx.capacity());
     }
 
-    for (size_t i = 0; not receiver.is_empty(); ++i) {
-        REQUIRE(receiver.recv() == static_cast<int>(i));
+    for (size_t i = 0; not rx.is_empty(); ++i) {
+        REQUIRE(rx.recv() == static_cast<int>(i));
     }
 }
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel disconnection", "[unit][channel]",
     ((auto ChannelFactory), ChannelFactory)
-    , []{ return cts::spsc::channel_bounded_fast<size_t>(512); }
-    , []{ return cts::spsc::channel_bounded<size_t>(512); }
+    , []{ return cts::spsc::channel_bounded_fast<char>(16); }
+    , []{ return cts::spsc::channel_bounded<char>(16); }
 ){
-    auto [tx, rx] = this->make_channel().into_endpoints();
+    auto [tx,rx] = this->make_channel().into_endpoints();
 
     REQUIRE(not tx.disconnected());
     REQUIRE(not rx.disconnected());
@@ -91,9 +91,12 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][chann
     , []{ return cts::spsc::channel_bounded_fast<size_t>(512); }
     , []{ return cts::spsc::channel_bounded<size_t>(512); }
 ){
-    constexpr size_t message_count = 8 * 1024 * 1024;
-    auto [sender, receiver] = this->make_channel().into_endpoints();
+    ChannelThrasher thrasher;
+    thrasher.message_count = 8 * 1024 * 1024;
 
-    auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
-    REQUIRE(std::move(thrasher).run());
+    auto [tx,rx] = this->make_channel().into_endpoints();
+    auto runner = thrasher.setup(std::move(tx),std::move(rx));
+
+    runner.run_blocking();
+    REQUIRE(runner.success());
 }

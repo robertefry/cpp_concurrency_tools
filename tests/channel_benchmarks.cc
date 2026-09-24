@@ -12,16 +12,19 @@
 
 TEST_CASE("channel benchmarks", "[!benchmark][channel]")
 {
-    constexpr size_t message_count = 1024;
     static constexpr auto reference_name = "channel_reference_with_mutex";
 
     constexpr auto benchmark_endpoints = [](char const* name, auto channel_factory)
     {
+        ChannelThrasher thrasher;
+        thrasher.message_count = 1024;
+
         BENCHMARK_ADVANCED(name)(Catch::Benchmark::Chronometer meter) {
-            auto [sender, receiver] = channel_factory().into_endpoints();
-            auto thrasher = ChannelThrasher{message_count, std::move(sender), std::move(receiver)};
-            meter.measure([&]{ std::move(thrasher).run(); });
+            auto [tx,rx] = channel_factory().into_endpoints();
+            auto runner = thrasher.setup(std::move(tx), std::move(rx));
+            meter.measure([&]{ runner.run_blocking(); });
         };
+
         if (name != reference_name) {
             auto const reference_limit = BenchmarkStats::get(reference_name).mean.lower_bound;
             auto const mean_upper_bound = BenchmarkStats::get(name).mean.upper_bound;
