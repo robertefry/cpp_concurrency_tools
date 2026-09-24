@@ -55,6 +55,37 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[
     }
 }
 
+TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel disconnection", "[unit][channel]",
+    ((auto ChannelFactory), ChannelFactory)
+    , []{ return cts::spsc::channel_bounded_fast<size_t>(512); }
+    , []{ return cts::spsc::channel_bounded<size_t>(512); }
+){
+    auto [tx, rx] = this->make_channel().into_endpoints();
+
+    REQUIRE(not tx.disconnected());
+    REQUIRE(not rx.disconnected());
+
+    SECTION("release producer") {
+        SECTION("explicit release"){
+            tx.release();
+        }
+        SECTION("release on destruction"){
+            auto tmp = std::move(tx);
+        }
+        REQUIRE(rx.disconnected());
+    }
+
+    SECTION("release consumer") {
+        SECTION("explicit release"){
+            rx.release();
+        }
+        SECTION("release on destruction"){
+            auto tmp = std::move(rx);
+        }
+        REQUIRE(tx.disconnected());
+    }
+}
+
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][channel]",
     ((auto ChannelFactory), ChannelFactory)
     , []{ return cts::spsc::channel_bounded_fast<size_t>(512); }

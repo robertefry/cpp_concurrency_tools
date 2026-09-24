@@ -61,6 +61,19 @@ namespace cts {
             alignas(cache_line) std::atomic_uint64_t tx_count_;
             alignas(cache_line) std::atomic_uint64_t rx_count_;
 
+            struct Connection {
+                RingChannel<T,Allocator,IndexPolicy> channel;
+                std::atomic_flag tx_connected;
+                std::atomic_flag rx_connected;
+
+                template <typename... Args> explicit Connection(Args&&... args)
+                    : channel {std::forward<Args>(args)...}
+                {
+                    tx_connected.clear();
+                    rx_connected.clear();
+                }
+            };
+
         public:
 
             ~RingChannel() {
@@ -111,9 +124,9 @@ namespace cts {
 
             [[nodiscard]] auto into_endpoints() && {
                 using Channel = std::remove_cvref_t<decltype(*this)>;
-                auto const channel = std::make_shared<Channel>(std::move(*this));
+                auto const connection = std::make_shared<typename Channel::Connection>(std::move(*this));
                 return std::tuple{
-                    ChannelTx<T,Channel>{channel}, ChannelRx<T,Channel>{channel}
+                    ChannelTx<T,Channel>{connection}, ChannelRx<T,Channel>{connection}
                 };
             }
 
@@ -203,32 +216,58 @@ namespace cts {
         using Channel = spsc::RingChannel<T,Allocator,IndexPolicy>;
         friend Channel;
 
-        std::shared_ptr<Channel> channel_;
+        std::shared_ptr<typename Channel::Connection> connection_;
 
-        explicit ChannelTx(std::shared_ptr<Channel> channel)
-            : channel_{channel}
-        {}
+        explicit ChannelTx(std::shared_ptr<typename Channel::Connection> connection)
+            : connection_{std::move(connection)}
+        {
+            assert(static_cast<bool>(connection_) && "expected a non-null connection");
+            connection_->tx_connected.test_and_set();
+        }
 
     public:
-        ChannelTx(ChannelTx&&) noexcept = default;
-        ChannelTx& operator=(ChannelTx&&) noexcept = default;
+        ~ChannelTx() {
+            release();
+        }
+
+        ChannelTx(ChannelTx&& other) noexcept
+            : connection_{std::exchange(other.connection_, nullptr)}
+        {}
+
+        ChannelTx& operator=(ChannelTx&& other) noexcept {
+            std::swap(*this, other);
+            return *this;
+        };
+
+        friend void swap(ChannelTx& a, ChannelTx& b) noexcept {
+            std::swap(a.connection_, b.connection_);
+        }
+
+        void release() noexcept {
+            if (connection_) { connection_->tx_connected.clear(); }
+            connection_.reset();
+        }
+
+        [[nodiscard]] bool disconnected() const {
+            return not connection_->rx_connected.test();
+        }
 
         [[nodiscard]] auto size() const noexcept {
-            auto const tx_count = channel_->tx_count_.load(std::memory_order_relaxed);
-            auto const rx_count = channel_->rx_count_.load(std::memory_order_acquire);
+            auto const tx_count = connection_->channel.tx_count_.load(std::memory_order_relaxed);
+            auto const rx_count = connection_->channel.rx_count_.load(std::memory_order_acquire);
             return tx_count - rx_count;
         }
 
-        [[nodiscard]] auto capacity() const noexcept { return channel_->capacity(); }
+        [[nodiscard]] auto capacity() const noexcept { return connection_->channel.capacity(); }
         [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
         [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
-        void send(T const& value) { channel_->send(value); }
-        void send(T&& value) { channel_->send(std::move(value)); }
+        void send(T const& value) { connection_->channel.send(value); }
+        void send(T&& value) { connection_->channel.send(std::move(value)); }
 
         template <typename... Args>
         void send_emplace(Args&&... args) {
-            channel_->send_emplace(std::forward<Args>(args)...);
+            connection_->channel.send_emplace(std::forward<Args>(args)...);
         }
 
     };
@@ -239,30 +278,56 @@ namespace cts {
         using Channel = spsc::RingChannel<T,Allocator,IndexPolicy>;
         friend Channel;
 
-        std::shared_ptr<Channel> channel_;
+        std::shared_ptr<typename Channel::Connection> connection_;
 
-        explicit ChannelRx(std::shared_ptr<Channel> channel)
-            : channel_{channel}
-        {}
+        explicit ChannelRx(std::shared_ptr<typename Channel::Connection> connection)
+            : connection_{std::move(connection)}
+        {
+            assert(static_cast<bool>(connection_) && "expected a non-null connection");
+            connection_->rx_connected.test_and_set();
+        }
 
     public:
-        ChannelRx(ChannelRx&&) noexcept = default;
-        ChannelRx& operator=(ChannelRx&&) noexcept = default;
+        ~ChannelRx() {
+            release();
+        }
+
+        ChannelRx(ChannelRx&& other) noexcept
+            : connection_{std::exchange(other.connection_, nullptr)}
+        {}
+
+        ChannelRx& operator=(ChannelRx&& other) noexcept {
+            std::swap(*this, other);
+            return *this;
+        }
+
+        friend void swap(ChannelRx& a, ChannelRx& b) noexcept {
+            std::swap(a.connection_, b.connection_);
+        }
+
+        void release() noexcept {
+            if (connection_) { connection_->rx_connected.clear(); }
+            connection_ = nullptr;
+        }
+
+        [[nodiscard]] bool disconnected() const {
+            return not connection_->tx_connected.test();
+        }
 
         [[nodiscard]] auto size() const noexcept {
-            auto const tx_count = channel_->tx_count_.load(std::memory_order_acquire);
-            auto const rx_count = channel_->rx_count_.load(std::memory_order_relaxed);
+            auto const tx_count = connection_->channel.tx_count_.load(std::memory_order_acquire);
+            auto const rx_count = connection_->channel.rx_count_.load(std::memory_order_relaxed);
             return tx_count - rx_count;
         }
 
-        [[nodiscard]] auto capacity() const noexcept { return channel_->capacity(); }
+        [[nodiscard]] auto capacity() const noexcept { return connection_->channel.capacity(); }
         [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
         [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
-        [[nodiscard]] auto recv() { return channel_->recv(); }
+        [[nodiscard]] auto recv() { return connection_->channel.recv(); }
 
-        void discard_next() { channel_->discard_next(); }
-        void discard_all() { channel_->discard_all(); }
+        void discard_next() { connection_->channel.discard_next(); }
+        void discard_all() { connection_->channel.discard_all(); }
 
     };
 
