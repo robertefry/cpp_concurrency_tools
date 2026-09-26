@@ -12,7 +12,7 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[
     , ([]{ return cts::spsc::channel_bounded<int>(16); }, 16)
     , ([]{ return cts::spsc::channel_bounded<int>(10); }, 10)
 ){
-    auto [tx,rx] = this->make_channel().into_endpoints();
+    auto [tx,rx] = this->make_endpoints();
 
     SECTION("default state") {
         REQUIRE(tx.send_available() == this->capacity());
@@ -61,7 +61,7 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel disconnection", "[unit][c
     , []{ return cts::spsc::channel_bounded_fast<char>(16); }
     , []{ return cts::spsc::channel_bounded<char>(16); }
 ){
-    auto [tx,rx] = this->make_channel().into_endpoints();
+    auto [tx,rx] = this->make_endpoints();
 
     REQUIRE(not tx.disconnected());
     REQUIRE(not rx.disconnected());
@@ -95,7 +95,7 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][chann
     ChannelThrasher thrasher;
     thrasher.message_count = 8 * 1024 * 1024;
 
-    auto [tx,rx] = this->make_channel().into_endpoints();
+    auto [tx,rx] = this->make_endpoints();
     auto runner = thrasher.setup(std::move(tx),std::move(rx));
 
     runner.run_blocking();

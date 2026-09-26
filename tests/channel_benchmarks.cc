@@ -20,7 +20,7 @@ TEST_CASE("channel benchmarks", "[!benchmark][channel]")
         thrasher.message_count = 1024;
 
         BENCHMARK_ADVANCED(name)(Catch::Benchmark::Chronometer meter) {
-            auto [tx,rx] = channel_factory().into_endpoints();
+            auto [tx,rx] = cts::channel_endpoints<size_t>(channel_factory());
             auto runner = thrasher.setup(std::move(tx), std::move(rx));
             meter.measure([&]{ runner.run_blocking(); });
         };

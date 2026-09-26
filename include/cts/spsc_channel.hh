@@ -110,10 +110,6 @@ namespace cts::spsc {
             buffer_ = alloc_traits::allocate(alloc_, capacity);
         }
 
-        [[nodiscard]] auto into_endpoints() && {
-           return cts::channel_endpoints<T>(std::move(*this));
-        }
-
         [[nodiscard]] auto send_available() const noexcept -> size_t {
             auto const tx_count = tx_count_.load(std::memory_order_relaxed);
             auto const rx_count = rx_count_.load(std::memory_order_acquire);
