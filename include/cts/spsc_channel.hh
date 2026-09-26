@@ -150,8 +150,8 @@ namespace cts {
             [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
             [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
-            void send(T const& value) { send_emplace(value); }
-            void send(T&& value) { send_emplace(std::move(value)); }
+            void send(T const& msg) { send_emplace(msg); }
+            void send(T&& msg) { send_emplace(std::move(msg)); }
 
             template <typename... Args>
             void send_emplace(Args&&... args) {
@@ -168,11 +168,11 @@ namespace cts {
                 assert(not is_empty());
                 auto rx_count = rx_count_.load(std::memory_order_relaxed);
 
-                auto value = std::move(buffer_[index_policy_.index(rx_count)]);
+                auto msg = std::move(buffer_[index_policy_.index(rx_count)]);
                 alloc_traits::destroy(alloc_, buffer_ + index_policy_.index(rx_count));
 
                 rx_count_.store(index_policy_.next(rx_count), std::memory_order_release);
-                return value;
+                return msg;
             }
 
             void discard_next() {
@@ -269,8 +269,8 @@ namespace cts {
         [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
         [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
-        void send(T const& value) { connection_->channel.send(value); }
-        void send(T&& value) { connection_->channel.send(std::move(value)); }
+        void send(T const& msg) { connection_->channel.send(msg); }
+        void send(T&& msg) { connection_->channel.send(std::move(msg)); }
 
         template <typename... Args>
         void send_emplace(Args&&... args) {
