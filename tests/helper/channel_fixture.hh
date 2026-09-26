@@ -2,6 +2,8 @@
 #ifndef CTS_TESTS_HELPER_CHANNEL_FIXTURE_HH
 #define CTS_TESTS_HELPER_CHANNEL_FIXTURE_HH
 
+#include "cts/channel.hh"
+
 #include "fixed_string.hh"
 
 template <auto ChannelFactory

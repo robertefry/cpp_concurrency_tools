@@ -2,8 +2,6 @@
 #ifndef CTS_SPSC_CHANNEL_HH
 #define CTS_SPSC_CHANNEL_HH
 
-#include "channel.hh"
-
 #include <cassert>
 #include <memory>
 #include <atomic>
