@@ -24,7 +24,13 @@ namespace cts {
                 {
                     assert(capacity_ != 0 && "capacity cannot be zero");
                 }
-                [[nodiscard]] auto index(size_t index) const noexcept { return index % capacity_; }
+                [[nodiscard]] auto index(size_t index) const noexcept {
+                    return index % capacity_;
+                }
+                [[nodiscard]] auto next(size_t index) const noexcept {
+                    if (index + 1 != 0) [[likely]] { return index + 1; }
+                    else return (index % capacity_) + 1;
+                }
             };
 
             class IndexPolicyMasking {
@@ -37,6 +43,7 @@ namespace cts {
                     assert((capacity & (capacity - 1)) == 0 && "capacity must be a power-of-two");
                 }
                 [[nodiscard]] auto index(size_t index) const noexcept { return index & index_mask_; }
+                [[nodiscard]] auto next(size_t index) const noexcept { return index + 1; }
             };
 
         } // namespace detail
@@ -154,7 +161,7 @@ namespace cts {
                 alloc_traits::construct(alloc_, buffer_ + index_policy_.index(tx_count),
                     std::forward<Args>(args)...
                 );
-                tx_count_.store(tx_count + 1, std::memory_order_release);
+                tx_count_.store(index_policy_.next(tx_count), std::memory_order_release);
             }
 
             [[nodiscard]] auto recv() -> T {
@@ -164,7 +171,7 @@ namespace cts {
                 auto value = std::move(buffer_[index_policy_.index(rx_count)]);
                 alloc_traits::destroy(alloc_, buffer_ + index_policy_.index(rx_count));
 
-                rx_count_.store(rx_count + 1, std::memory_order_release);
+                rx_count_.store(index_policy_.next(rx_count), std::memory_order_release);
                 return value;
             }
 
@@ -172,7 +179,7 @@ namespace cts {
                 assert(not is_empty());
                 auto const rx_count = rx_count_.load(std::memory_order_relaxed);
                 alloc_traits::destroy(alloc_, buffer_ + index_policy_.index(rx_count));
-                rx_count_.store(rx_count + 1, std::memory_order_release);
+                rx_count_.store(index_policy_.next(rx_count), std::memory_order_release);
             }
 
             void discard_all() {
