@@ -92,23 +92,25 @@ function(target_add_catch_tests target)
   set(_san_flags_aubsan "-fno-omit-frame-pointer" "-fsanitize=address,undefined")
   set(_san_flags_tsan "-fno-omit-frame-pointer" "-fsanitize=thread")
 
-  # TODO: Ensure this actually selecting the correct triplet, instead of
-  # manually supplying compiler flags.
-  set(_cfg_names "debug" "release")
-  set(_cfg_flags_debug   "-Og" "-g")
-  set(_cfg_flags_release "-O2" "-DNDEBUG")
+  # This is a hack. The configured CMake compile options are still present, but
+  # this hopefully overrides them by appending overriding flags.
+  # TODO: We still need correct linking for non-header-only libraries!
+  set(_cfg_names "DEBUG" "RELEASE")
 
   foreach(_san ${_san_names})
     foreach(_cfg ${_cfg_names})
 
-      set(_variant "${target}-${_san}-${_cfg}")
+      string(TOLOWER "${_cfg}" _cfg_name)
+      set(_variant "${target}-${_san}-${_cfg_name}")
 
       add_executable(${_variant} ${_sources})
       target_set_standards(${_variant})
 
       target_link_libraries(${_variant} PRIVATE ${target})
 
-      target_compile_options(${_variant} PRIVATE ${_san_flags_${_san}} ${_cfg_flags_${_cfg}})
+      separate_arguments(_cfg_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS_${_cfg}}")
+
+      target_compile_options(${_variant} PRIVATE ${_san_flags_${_san}} ${_cfg_flags})
       target_link_options(${_variant} PRIVATE ${_san_flags_${_san}})
 
       catch_discover_tests(${_variant} TEST_PREFIX "${_variant}: ")
