@@ -7,51 +7,52 @@
 #include <catch2/catch_all.hpp>
 
 TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[unit][channel]",
-    ((auto ChannelFactory), ChannelFactory)
-    , []{ return cts::spsc::channel_bounded_fast<int>(16); }
-    , []{ return cts::spsc::channel_bounded<int>(16); }
-    , []{ return cts::spsc::channel_bounded<int>(10); }
+    ((auto ChannelFactory, size_t Capacity), ChannelFactory, Capacity)
+    , ([]{ return cts::spsc::channel_bounded_fast<int>(16); }, 16)
+    , ([]{ return cts::spsc::channel_bounded<int>(16); }, 16)
+    , ([]{ return cts::spsc::channel_bounded<int>(10); }, 10)
 ){
     auto [tx,rx] = this->make_channel().into_endpoints();
 
     SECTION("default state") {
-        REQUIRE(tx.is_full() == false);
-        REQUIRE(tx.size() == 0);
-        REQUIRE(rx.is_empty() == true);
-        REQUIRE(rx.size() == 0);
+        REQUIRE(tx.send_available() == this->capacity());
+        REQUIRE(rx.recv_available() == 0);
     }
 
     tx.send(42);
 
     SECTION("non-empty state") {
-        REQUIRE(tx.is_full() == false);
-        REQUIRE(tx.size() == 1);
-        REQUIRE(rx.is_empty() == false);
-        REQUIRE(rx.size() == 1);
+        REQUIRE(tx.send_available() == this->capacity() - 1);
+        REQUIRE(rx.recv_available() == 1);
     }
 
     REQUIRE(rx.recv() == 42);
 
     SECTION("emptied state") {
-        REQUIRE(tx.is_full() == false);
-        REQUIRE(tx.size() == 0);
-        REQUIRE(rx.is_empty() == true);
-        REQUIRE(rx.size() == 0);
+        REQUIRE(tx.send_available() == this->capacity());
+        REQUIRE(rx.recv_available() == 0);
     }
 
-    for (size_t i = 0; i < tx.capacity(); ++i) {
+    for (size_t i = 0; i < this->capacity(); ++i) {
+        REQUIRE(tx.send_available());
         tx.send(static_cast<int>(i));
     }
+    REQUIRE(not tx.send_available());
 
     SECTION("filled state") {
-        REQUIRE(tx.is_full() == true);
-        REQUIRE(tx.size() == tx.capacity());
-        REQUIRE(rx.is_empty() == false);
-        REQUIRE(rx.size() == rx.capacity());
+        REQUIRE(tx.send_available() == 0);
+        REQUIRE(rx.recv_available() == this->capacity());
     }
 
-    for (size_t i = 0; not rx.is_empty(); ++i) {
-        REQUIRE(rx.recv() == static_cast<int>(i));
+    {
+        size_t count = 0;
+
+        for (; rx.recv_available(); ++count) {
+            REQUIRE(rx.recv() == static_cast<int>(count));
+        }
+        REQUIRE(not rx.recv_available());
+
+        REQUIRE(count == this->capacity());
     }
 }
 

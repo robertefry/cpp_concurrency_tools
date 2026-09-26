@@ -5,6 +5,7 @@
 #include "fixed_string.hh"
 
 template <auto ChannelFactory
+    , size_t capacity_ = 0
     , FixedString name = "unnamed channel fixture"
 >
 struct ChannelFixture {
@@ -13,6 +14,8 @@ struct ChannelFixture {
     using Endpoints = std::remove_cvref_t<decltype(ChannelFactory().into_endpoints())>;
 
     [[nodiscard]] constexpr auto fixture_name() const { return std::string_view{name}; }
+
+    [[nodiscard]] constexpr auto capacity() const { return capacity_; }
 
     template <typename... Args>
     [[nodiscard]] auto make_channel(Args&&... args) const {

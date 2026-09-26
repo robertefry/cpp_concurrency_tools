@@ -58,8 +58,16 @@ public:
     {
         started_.clear();
 
-        producer_ = std::jthread{[this](std::stop_token token){ this->producer_task(token); }};
-        consumer_ = std::jthread{[this](std::stop_token token){ this->consumer_task(token); }};
+        producer_ = std::jthread{[this](std::stop_token token){
+            sync_.arrive_and_wait();
+            this->producer_task(token);
+            done_.count_down();
+        }};
+        consumer_ = std::jthread{[this](std::stop_token token){
+            sync_.arrive_and_wait();
+            this->consumer_task(token);
+            done_.count_down();
+        }};
     }
 
     void run_blocking() {
@@ -76,28 +84,22 @@ public:
 private:
 
     void producer_task(std::stop_token token) {
-        sync_.arrive_and_wait();
-
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (not tx_.is_full()) { tx_.send(counter++); }
+            if (tx_.send_available()) { tx_.send(counter++); }
             std::this_thread::sleep_for(config_.producer_work_time);
             std::this_thread::yield();
         }
-        done_.count_down();
     }
 
     void consumer_task(std::stop_token token) {
-        sync_.arrive_and_wait();
-
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (not rx_.is_empty() && rx_.recv() != counter++) { return; }
+            if (rx_.recv_available() && rx_.recv() != counter++) { return; }
             std::this_thread::sleep_for(config_.consumer_work_time);
             std::this_thread::yield();
         }
         success_.store(true, std::memory_order_release);
-        done_.count_down();
     }
 
 };

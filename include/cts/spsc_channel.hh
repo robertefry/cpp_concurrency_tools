@@ -5,10 +5,9 @@
 #include "channel.hh"
 
 #include <cassert>
-#include <atomic>
 #include <memory>
+#include <atomic>
 #include <new>
-#include <utility>
 
 namespace cts {
 
@@ -86,7 +85,7 @@ namespace cts {
             ~RingChannel() {
                 if (buffer_ != nullptr) {
                     discard_all();
-                    alloc_traits::deallocate(alloc_, buffer_, capacity());
+                    alloc_traits::deallocate(alloc_, buffer_, capacity_);
                 }
             }
 
@@ -137,25 +136,18 @@ namespace cts {
                 };
             }
 
-            [[nodiscard]] auto capacity() const noexcept -> size_t {
-                return capacity_;
-            }
-
-            [[nodiscard]] auto size() const noexcept -> size_t {
-                auto const tx_count = tx_count_.load(std::memory_order_acquire);
+            [[nodiscard]] auto send_available() const noexcept -> size_t {
+                auto const tx_count = tx_count_.load(std::memory_order_relaxed);
                 auto const rx_count = rx_count_.load(std::memory_order_acquire);
-                return tx_count - rx_count;
+                return capacity_ - (tx_count - rx_count);
             }
-
-            [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
-            [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
             void send(T const& msg) { send_emplace(msg); }
             void send(T&& msg) { send_emplace(std::move(msg)); }
 
             template <typename... Args>
             void send_emplace(Args&&... args) {
-                assert(not is_full());
+                assert(send_available() != 0 && "expected a free slot in the channel");
                 auto tx_count = tx_count_.load(std::memory_order_relaxed);
 
                 alloc_traits::construct(alloc_, buffer_ + index_policy_.index(tx_count),
@@ -164,8 +156,14 @@ namespace cts {
                 tx_count_.store(index_policy_.next(tx_count), std::memory_order_release);
             }
 
+            [[nodiscard]] auto recv_available() const noexcept -> size_t {
+                auto const tx_count = tx_count_.load(std::memory_order_acquire);
+                auto const rx_count = rx_count_.load(std::memory_order_relaxed);
+                return tx_count - rx_count;
+            }
+
             [[nodiscard]] auto recv() -> T {
-                assert(not is_empty());
+                assert(recv_available() != 0 && "expected a message in the channel");
                 auto rx_count = rx_count_.load(std::memory_order_relaxed);
 
                 auto msg = std::move(buffer_[index_policy_.index(rx_count)]);
@@ -176,14 +174,15 @@ namespace cts {
             }
 
             void discard_next() {
-                assert(not is_empty());
-                auto const rx_count = rx_count_.load(std::memory_order_relaxed);
+                assert(recv_available() != 0 && "expected a message in the channel");
+                auto rx_count = rx_count_.load(std::memory_order_relaxed);
+
                 alloc_traits::destroy(alloc_, buffer_ + index_policy_.index(rx_count));
                 rx_count_.store(index_policy_.next(rx_count), std::memory_order_release);
             }
 
             void discard_all() {
-                auto tx_count = tx_count_.load(std::memory_order_acquire);
+                auto const tx_count = tx_count_.load(std::memory_order_acquire);
                 auto rx_count = rx_count_.load(std::memory_order_relaxed);
 
                 while (tx_count != rx_count) {
@@ -242,8 +241,7 @@ namespace cts {
         {}
 
         ChannelTx& operator=(ChannelTx&& other) noexcept {
-            std::swap(*this, other);
-            return *this;
+            std::swap(*this, other); return *this;
         };
 
         friend void swap(ChannelTx& a, ChannelTx& b) noexcept {
@@ -259,15 +257,9 @@ namespace cts {
             return not connection_->rx_connected.test();
         }
 
-        [[nodiscard]] auto size() const noexcept {
-            auto const tx_count = connection_->channel.tx_count_.load(std::memory_order_relaxed);
-            auto const rx_count = connection_->channel.rx_count_.load(std::memory_order_acquire);
-            return tx_count - rx_count;
+        [[nodiscard]] auto send_available() const noexcept {
+            return connection_->channel.send_available();
         }
-
-        [[nodiscard]] auto capacity() const noexcept { return connection_->channel.capacity(); }
-        [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
-        [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
         void send(T const& msg) { connection_->channel.send(msg); }
         void send(T&& msg) { connection_->channel.send(std::move(msg)); }
@@ -304,8 +296,7 @@ namespace cts {
         {}
 
         ChannelRx& operator=(ChannelRx&& other) noexcept {
-            std::swap(*this, other);
-            return *this;
+            std::swap(*this, other); return *this;
         }
 
         friend void swap(ChannelRx& a, ChannelRx& b) noexcept {
@@ -321,15 +312,9 @@ namespace cts {
             return not connection_->tx_connected.test();
         }
 
-        [[nodiscard]] auto size() const noexcept {
-            auto const tx_count = connection_->channel.tx_count_.load(std::memory_order_acquire);
-            auto const rx_count = connection_->channel.rx_count_.load(std::memory_order_relaxed);
-            return tx_count - rx_count;
+        [[nodiscard]] auto recv_available() const noexcept {
+            return connection_->channel.recv_available();
         }
-
-        [[nodiscard]] auto capacity() const noexcept { return connection_->channel.capacity(); }
-        [[nodiscard]] auto is_empty() const noexcept { return size() == 0; }
-        [[nodiscard]] auto is_full() const noexcept { return size() == capacity(); }
 
         [[nodiscard]] auto recv() { return connection_->channel.recv(); }
 
