@@ -83,11 +83,16 @@ public:
 
 private:
 
+    static void spin_for(std::chrono::nanoseconds duration) {
+        auto const wake_time = std::chrono::steady_clock::now() + duration;
+        while (wake_time > std::chrono::steady_clock::now());
+    }
+
     void producer_task(std::stop_token token) {
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
             if (tx_.send_available()) { tx_.send(counter++); }
-            std::this_thread::sleep_for(config_.producer_work_time);
+            spin_for(config_.producer_work_time);
             std::this_thread::yield();
         }
     }
@@ -96,7 +101,7 @@ private:
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
             if (rx_.recv_available() && rx_.recv() != counter++) { return; }
-            std::this_thread::sleep_for(config_.consumer_work_time);
+            spin_for(config_.consumer_work_time);
             std::this_thread::yield();
         }
         success_.store(true, std::memory_order_release);

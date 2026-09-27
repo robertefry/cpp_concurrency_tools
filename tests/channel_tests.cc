@@ -93,7 +93,14 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][chann
     , []{ return cts::spsc::channel_bounded<size_t>(512); }
 ){
     ChannelThrasher thrasher;
-    thrasher.message_count = 8 * 1024 * 1024;
+
+    if (GENERATE(true,false)) {
+        thrasher.message_count = 8 * 1024 * 1024;
+    } else {
+        thrasher.message_count = 1024 * 1024;
+        thrasher.producer_work_time = std::chrono::nanoseconds{GENERATE(0,100)};
+        thrasher.consumer_work_time = std::chrono::nanoseconds{GENERATE(0,100)};
+    }
 
     auto [tx,rx] = this->make_endpoints();
     auto runner = thrasher.setup(std::move(tx),std::move(rx));
