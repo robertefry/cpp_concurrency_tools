@@ -49,11 +49,13 @@ namespace cts::spsc {
     > class RingChannel {
 
         using alloc_traits = std::allocator_traits<Allocator>;
+        static_assert(std::is_same_v<Allocator,std::decay_t<Allocator>>);
+        [[no_unique_address]] Allocator alloc_;
 
         T* buffer_;
         size_t capacity_;
 
-        [[no_unique_address]] Allocator alloc_;
+        static_assert(std::is_same_v<IndexPolicy,std::decay_t<IndexPolicy>>);
         [[no_unique_address]] IndexPolicy index_policy_;
 
         static constexpr size_t cache_line = std::hardware_destructive_interference_size;
@@ -70,9 +72,9 @@ namespace cts::spsc {
         }
 
         RingChannel(RingChannel&& other) noexcept
-            : buffer_{std::exchange(other.buffer_, nullptr)}
+            : alloc_{std::move(other.alloc_)}
+            , buffer_{std::exchange(other.buffer_, nullptr)}
             , capacity_{std::exchange(other.capacity_, 0)}
-            , alloc_{std::move(other.alloc_)}
             , index_policy_{std::move(other.index_policy_)}
             , tx_count_{std::atomic_exchange_explicit(&other.tx_count_, 0, std::memory_order_relaxed)}
             , rx_count_{std::atomic_exchange_explicit(&other.rx_count_, 0, std::memory_order_relaxed)}
@@ -85,9 +87,9 @@ namespace cts::spsc {
                 a->store(b_val, std::memory_order_relaxed);
                 b->store(a_val, std::memory_order_relaxed);
             };
+            std::swap(alloc_, other.alloc_);
             std::swap(buffer_, other.buffer_);
             std::swap(capacity_, other.capacity_);
-            std::swap(alloc_, other.alloc_);
             std::swap(index_policy_, other.index_policy_);
             atomic_swap_relaxed(rx_count_, other.rx_count_);
             atomic_swap_relaxed(tx_count_, other.tx_count_);
@@ -96,11 +98,11 @@ namespace cts::spsc {
 
         explicit RingChannel(
             size_t capacity
-            , Allocator const& allocator = Allocator{}
+            , Allocator allocator = Allocator{}
         )
-            : buffer_{alloc_traits::allocate(allocator, capacity)}
+            : alloc_{std::move(allocator)}
+            , buffer_{alloc_traits::allocate(alloc_, capacity)}
             , capacity_{capacity}
-            , alloc_{allocator}
             , index_policy_{capacity}
             , tx_count_{0}
             , rx_count_{0}
@@ -168,20 +170,20 @@ namespace cts::spsc {
         , typename Allocator = std::allocator<T>
     > [[nodiscard]] auto channel_bounded_fast(
         size_t capacity
-        , Allocator const& allocator = Allocator{}
+        , Allocator&& allocator = Allocator{}
     ) {
-        using Channel = RingChannel<T,Allocator,detail::IndexPolicyMasking>;
-        return Channel{capacity, allocator};
+        using Channel = RingChannel<T,std::decay_t<Allocator>,detail::IndexPolicyMasking>;
+        return Channel{capacity, std::forward<Allocator>(allocator)};
     }
 
     template <typename T
         , typename Allocator = std::allocator<T>
     > [[nodiscard]] auto channel_bounded(
         size_t capacity
-        , Allocator const& allocator = Allocator{}
+        , Allocator&& allocator = Allocator{}
     ) {
-        using Channel = RingChannel<T,Allocator,detail::IndexPolicyModulo>;
-        return Channel{capacity, allocator};
+        using Channel = RingChannel<T,std::decay_t<Allocator>,detail::IndexPolicyModulo>;
+        return Channel{capacity, std::forward<Allocator>(allocator)};
     }
 
 } // namespace cts::spsc
