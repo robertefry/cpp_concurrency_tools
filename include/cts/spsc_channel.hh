@@ -98,15 +98,13 @@ namespace cts::spsc {
             size_t capacity
             , Allocator const& allocator = Allocator{}
         )
-            : buffer_{nullptr}
+            : buffer_{alloc_traits::allocate(allocator, capacity)}
             , capacity_{capacity}
             , alloc_{allocator}
             , index_policy_{capacity}
             , tx_count_{0}
             , rx_count_{0}
-        {
-            buffer_ = alloc_traits::allocate(alloc_, capacity);
-        }
+        {}
 
         [[nodiscard]] auto send_available() const noexcept -> size_t {
             auto const tx_count = tx_count_.load(std::memory_order_relaxed);
