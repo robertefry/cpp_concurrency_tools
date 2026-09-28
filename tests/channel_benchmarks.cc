@@ -1,4 +1,5 @@
 
+#include "cts/channel.hh"
 #include "cts/spsc_channel.hh"
 
 #include "helper/stat_logs.hh"
