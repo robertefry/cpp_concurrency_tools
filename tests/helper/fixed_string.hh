@@ -11,8 +11,9 @@ struct FixedString {
     static_assert(N >= 1 && "N == 0 is undefined behaviour");
     char _buffer[N];
     inline constexpr FixedString(char const (&name)[N]) { std::copy_n(name, N, _buffer); }
-    inline constexpr operator std::string_view() { return std::string_view{_buffer, N-1}; }
-    inline constexpr bool operator==(std::string_view other) { return std::string_view{*this} == other; }
+    inline constexpr operator char const*() const { return _buffer; }
+    inline constexpr operator std::string_view() const { return std::string_view{_buffer, N-1}; }
+    inline constexpr bool operator==(std::string_view other) const { return std::string_view{*this} == other; }
 };
 
 #endif /* CTS_TESTS_HELPER_STATIC_STRING_HH */

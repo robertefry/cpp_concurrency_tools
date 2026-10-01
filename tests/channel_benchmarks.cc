@@ -32,8 +32,8 @@ TEST_CASE("channel benchmarks", "[!benchmark][channel]")
             CAPTURE(name); CHECK(mean_upper_bound < reference_limit);
         }
     };
-
     benchmark_endpoints(reference_name, []{ return ReferenceChannel<size_t>{}; });
-    benchmark_endpoints("cts::spsc::channel_bounded_fast", []{ return cts::spsc::channel_bounded_fast<size_t>(64); });
-    benchmark_endpoints("cts::spsc::channel_bounded",      []{ return cts::spsc::channel_bounded<size_t>(64); });
+
+#define BENCH_ENTRY(N, ...) benchmark_endpoints(#__VA_ARGS__, []{ return __VA_ARGS__; });
+    CHANNEL_VARIANTS(BENCH_ENTRY, size_t, 64)
 }

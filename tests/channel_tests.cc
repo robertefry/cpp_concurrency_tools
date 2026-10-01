@@ -1,18 +1,11 @@
 
-#include "cts/channel.hh"
-#include "cts/spsc_channel.hh"
-
 #include "helper/channel_fixture.hh"
 #include "helper/channel_thrasher.hh"
 
 #include <catch2/catch_all.hpp>
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[unit][channel]",
-    ((auto ChannelFactory, size_t Capacity), ChannelFactory, Capacity)
-    , ([]{ return cts::spsc::channel_bounded_fast<int>(16); }, 16)
-    , ([]{ return cts::spsc::channel_bounded<int>(16); }, 16)
-    , ([]{ return cts::spsc::channel_bounded<int>(10); }, 10)
-){
+CHANNEL_TEST_CASE(int, 16, "sequential operation", "[unit]")
+{
     auto [tx,rx] = this->make_endpoints();
 
     SECTION("default state") {
@@ -57,11 +50,8 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel sequential operation", "[
     }
 }
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel disconnection", "[unit][channel]",
-    ((auto ChannelFactory), ChannelFactory)
-    , []{ return cts::spsc::channel_bounded_fast<char>(16); }
-    , []{ return cts::spsc::channel_bounded<char>(16); }
-){
+CHANNEL_TEST_CASE(char, 16, "disconnection", "[unit]")
+{
     auto [tx,rx] = this->make_endpoints();
 
     REQUIRE(not tx.disconnected());
@@ -88,11 +78,8 @@ TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel disconnection", "[unit][c
     }
 }
 
-TEMPLATE_TEST_CASE_METHOD_SIG(ChannelFixture, "channel thrashing", "[load][channel]",
-    ((auto ChannelFactory), ChannelFactory)
-    , []{ return cts::spsc::channel_bounded_fast<size_t>(128); }
-    , []{ return cts::spsc::channel_bounded<size_t>(128); }
-){
+CHANNEL_TEST_CASE(size_t, 16, "thrashing", "[load]")
+{
     ChannelThrasher thrasher;
 
     if (GENERATE(true,false)) {
