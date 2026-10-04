@@ -10,7 +10,7 @@
 
 class ChannelThrasher {
 
-    template <typename Tx, typename Rx>
+    template <typename Channel>
     class Runner;
 
 public:
@@ -19,17 +19,16 @@ public:
     std::chrono::nanoseconds producer_work_time {0};
     std::chrono::nanoseconds consumer_work_time {0};
 
-    template <typename Tx, typename Rx>
-    [[nodiscard]] auto setup(Tx&& tx, Rx&& rx) const -> Runner<Tx,Rx>;
+    template <typename Channel>
+    [[nodiscard]] auto setup(Channel* channel) const -> Runner<Channel>;
 
 };
 
-template <typename Tx, typename Rx>
+template <typename Channel>
 class ChannelThrasher::Runner {
 
     ChannelThrasher config_;
-    Tx tx_;
-    Rx rx_;
+    Channel* channel_;
 
     std::latch sync_{3};
     std::latch done_{2};
@@ -51,11 +50,11 @@ public:
     Runner(Runner&&) = delete;
     Runner& operator=(Runner&&) = delete;
 
-    Runner(ChannelThrasher config, Tx tx, Rx rx)
+    Runner(ChannelThrasher config, Channel* channel)
         : config_{std::move(config)}
-        , tx_{std::move(tx)}
-        , rx_{std::move(rx)}
+        , channel_{channel}
     {
+        assert(channel != nullptr && "cannot construct over a nullptr channel");
         started_.clear();
 
         producer_ = std::jthread{[this](std::stop_token token){
@@ -91,7 +90,7 @@ private:
     void producer_task(std::stop_token token) {
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (tx_.send_available()) { tx_.send(counter++); }
+            if (channel_->send_available()) { channel_->send(counter++); }
             spin_for(config_.producer_work_time);
             std::this_thread::yield();
         }
@@ -100,7 +99,7 @@ private:
     void consumer_task(std::stop_token token) {
         for (size_t counter = 0; counter < config_.message_count;) {
             if (token.stop_requested()) { return; }
-            if (rx_.recv_available() && rx_.recv() != counter++) { return; }
+            if (channel_->recv_available() && channel_->recv() != counter++) { return; }
             spin_for(config_.consumer_work_time);
             std::this_thread::yield();
         }
@@ -109,9 +108,9 @@ private:
 
 };
 
-template <typename Tx, typename Rx>
-auto ChannelThrasher::setup(Tx&& tx, Rx&& rx) const -> Runner<Tx,Rx> {
-    return Runner{*this, std::forward<Tx>(tx), std::forward<Rx>(rx)};
+template <typename Channel>
+auto ChannelThrasher::setup(Channel* channel) const -> Runner<Channel> {
+    return Runner{*this, channel};
 };
 
 #endif /* CTS_TESTS_HELPER_CHANNEL_THRASHER_HH */

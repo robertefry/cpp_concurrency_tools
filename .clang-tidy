@@ -1,0 +1,47 @@
+# https://clang.llvm.org/extra/clang-tidy/checks/list.html
+Checks: '-*,
+    cppcoreguidelines-*,
+      -cppcoreguidelines-use-default-member-init,
+      -cppcoreguidelines-avoid-magic-numbers,
+    hicpp-*,
+    modernize-*,
+      -modernize-use-default-member-init,
+      -modernize-use-trailing-return-type,
+    bugprone-*,
+      -bugprone-easily-swappable-parameters,
+    cert-*,
+    misc-*,
+      -misc-non-private-member-variables-in-classes,
+      -misc-use-anonymous-namespace,
+      -misc-include-cleaner,
+    concurrency-*,
+    performance-*,
+    portability-*,
+    readability-*,
+      -readability-redundant-access-specifiers,
+      -readability-identifier-length,
+      -readability-magic-numbers,
+      -readability-uppercase-literal-suffix,
+    clang-analyzer-*,
+
+    llvm-namespace-comment,
+
+    google-global-names-in-headers,
+    google-runtime-int,
+  '
+CheckOptions:
+  - key:    cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value:  'true'
+  - key:    cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
+    value:  'true'
+  - key:    cppcoreguidelines-special-member-functions.AllowImplicitlyDeletedCopyOrMove
+    value:  'true'
+  - key:    cppcoreguidelines-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value:  'true'
+  - key:    readability-function-cognitive-complexity.IgnoreMacros
+    value:  'true'
+
+WarningsAsErrors:   '*'
+HeaderFilterRegex:  '^/path/to/your/project/(src|include)/'
+SystemHeaders:      'false'
+FormatStyle:        'file'

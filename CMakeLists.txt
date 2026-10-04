@@ -27,12 +27,12 @@ target_link_libraries(concurrency_tools-tests INTERFACE
   Catch2::Catch2WithMain
 )
 
-add_executable(concurrency_tools-benchmarks
-  tests/channel_benchmarks.cc
-)
-target_add_catch_benchmarks(concurrency_tools-benchmarks)
+# add_executable(concurrency_tools-benchmarks
+#   tests/channel_benchmarks.cc
+# )
+# target_add_catch_benchmarks(concurrency_tools-benchmarks)
 
-target_link_libraries(concurrency_tools-benchmarks
-  concurrency_tools
-  Catch2::Catch2WithMain
-)
+# target_link_libraries(concurrency_tools-benchmarks
+#   concurrency_tools
+#   Catch2::Catch2WithMain
+# )

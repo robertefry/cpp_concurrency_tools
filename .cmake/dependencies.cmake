@@ -9,6 +9,7 @@ CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
   VERSION 3.16.0
+  SYSTEM YES
 )
 
 # Suppress -Wc2y-extensions warnings caused by Catch2's use of '__COUNTER__'.

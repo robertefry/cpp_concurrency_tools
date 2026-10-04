@@ -1,12 +1,22 @@
 {
     "version": 6,
     "configurePresets": [
-        { "name": "default", "binaryDir": "${sourceDir}/.build" }
+        {
+            "name": "default",
+            "binaryDir": "${sourceDir}/.build",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        }
     ],
     "testPresets": [{
         "name": "default",
         "configurePreset": "default",
         "filter": { "exclude": { "label": "benchmark" } }
+    },{
+        "name": "unit",
+        "configurePreset": "default",
+        "filter": { "include": { "label": "unit" } }
     },{
         "name": "benchmarks",
         "configurePreset": "default",

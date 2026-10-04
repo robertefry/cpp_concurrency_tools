@@ -1,4 +1,3 @@
 {
     "cmake.ctest.testSuiteDelimiter": ": ",
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/.build/compile_commands.json"
 }

@@ -1,97 +1,60 @@
 
-#include "helper/channel_fixture.hh"
+#include "cts/spsc_channel.hh"
+
 #include "helper/channel_thrasher.hh"
 
 #include <catch2/catch_all.hpp>
 
-CHANNEL_TEST_CASE(int, 16, "sequential operation", "[unit]")
+TEST_CASE("channel sequential operation", "[channel][unit]")
 {
-    auto [tx,rx] = this->make_endpoints();
+    static constexpr size_t capacity = 16;
+    auto channel = cts::spsc::RingChannel<size_t>::with_capacity(capacity);
 
-    SECTION("default state") {
-        REQUIRE(tx.send_available() == this->capacity());
-        REQUIRE(rx.recv_available() == 0);
+    REQUIRE(channel.send_available() == capacity);
+    REQUIRE(channel.recv_available() == 0);
+
+    channel.send(42);
+
+    [[maybe_unused]] auto const x = channel.send_available();
+    REQUIRE(channel.send_available() == capacity - 1);
+    REQUIRE(channel.recv_available() == 1);
+
+    REQUIRE(channel.recv() == 42);
+
+    REQUIRE(channel.send_available() == capacity - 1);
+    channel.send_refresh();
+
+    REQUIRE(channel.send_available() == capacity);
+    REQUIRE(channel.recv_available() == 0);
+
+    for (size_t i = 0; i < capacity; ++i) {
+        REQUIRE(channel.send_available());
+        channel.send(i);
     }
+    REQUIRE(not channel.send_available());
 
-    tx.send(42);
-
-    SECTION("non-empty state") {
-        REQUIRE(tx.send_available() == this->capacity() - 1);
-        REQUIRE(rx.recv_available() == 1);
+    for (size_t i = 0; i < capacity; ++i) {
+        REQUIRE(channel.recv_available());
+        REQUIRE(channel.recv() == i);
     }
+    REQUIRE(not channel.recv_available());
 
-    REQUIRE(rx.recv() == 42);
-
-    SECTION("emptied state") {
-        REQUIRE(tx.send_available() == this->capacity());
-        REQUIRE(rx.recv_available() == 0);
-    }
-
-    for (size_t i = 0; i < this->capacity(); ++i) {
-        REQUIRE(tx.send_available());
-        tx.send(static_cast<int>(i));
-    }
-    REQUIRE(not tx.send_available());
-
-    SECTION("filled state") {
-        REQUIRE(tx.send_available() == 0);
-        REQUIRE(rx.recv_available() == this->capacity());
-    }
-
-    {
-        size_t count = 0;
-
-        for (; rx.recv_available(); ++count) {
-            REQUIRE(rx.recv() == static_cast<int>(count));
-        }
-        REQUIRE(not rx.recv_available());
-
-        REQUIRE(count == this->capacity());
-    }
 }
 
-CHANNEL_TEST_CASE(char, 16, "disconnection", "[unit]")
-{
-    auto [tx,rx] = this->make_endpoints();
-
-    REQUIRE(not tx.disconnected());
-    REQUIRE(not rx.disconnected());
-
-    SECTION("release producer") {
-        SECTION("explicit release"){
-            tx.release();
-        }
-        SECTION("release on destruction"){
-            auto tmp = std::move(tx);
-        }
-        REQUIRE(rx.disconnected());
-    }
-
-    SECTION("release consumer") {
-        SECTION("explicit release"){
-            rx.release();
-        }
-        SECTION("release on destruction"){
-            auto tmp = std::move(rx);
-        }
-        REQUIRE(tx.disconnected());
-    }
-}
-
-CHANNEL_TEST_CASE(size_t, 16, "thrashing", "[load]")
+TEST_CASE("channel thrashing", "[channel][load]")
 {
     ChannelThrasher thrasher;
 
     if (GENERATE(true,false)) {
-        thrasher.message_count = 8 * 1024 * 1024;
+        thrasher.message_count = 8uz * 1024uz * 1024uz;
     } else {
-        thrasher.message_count = 1024 * 1024;
+        thrasher.message_count = 1024uz * 1024uz;
         thrasher.producer_work_time = std::chrono::nanoseconds{GENERATE(0,100)};
         thrasher.consumer_work_time = std::chrono::nanoseconds{GENERATE(0,100)};
     }
 
-    auto [tx,rx] = this->make_endpoints();
-    auto runner = thrasher.setup(std::move(tx),std::move(rx));
+    auto channel = cts::spsc::RingChannel<size_t>::with_capacity(64);
+    auto runner = thrasher.setup(&channel);
 
     runner.run_blocking();
     REQUIRE(runner.success());
