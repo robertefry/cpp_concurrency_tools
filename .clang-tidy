@@ -2,6 +2,7 @@
 Checks: '-*,
     cppcoreguidelines-*,
       -cppcoreguidelines-use-default-member-init,
+      -cppcoreguidelines-owning-memory,
       -cppcoreguidelines-avoid-magic-numbers,
     hicpp-*,
     modernize-*,

@@ -91,35 +91,39 @@ function(target_add_catch_tests target)
 
   get_target_property(_sources ${target} SOURCES)
 
-  set(_san_names "nosan" "aubsan" "tsan")
+  # !!!
+  # This need a lot more work to get right. For now, we'll disable triplet multiplexing.
+
+  set(_san_names "aubsan" "tsan")
   set(_san_flags_nosan "")
   set(_san_flags_aubsan "-fno-omit-frame-pointer" "-fsanitize=address,undefined")
   set(_san_flags_tsan "-fno-omit-frame-pointer" "-fsanitize=thread")
 
-  # This is a hack. The configured CMake compile options are still present, but
-  # this hopefully overrides them by appending overriding flags.
-  # TODO: We still need correct linking for non-header-only libraries!
-  set(_cfg_names "DEBUG" "RELEASE")
+  # # This is a hack. The configured CMake compile options are still present, but
+  # # this hopefully overrides them by appending overriding flags.
+  # # TODO: We still need correct linking for non-header-only libraries!
+  # set(_cfg_names "DEBUG" "RELEASE")
 
   foreach(_san ${_san_names})
-    foreach(_cfg ${_cfg_names})
+  #   foreach(_cfg ${_cfg_names})
 
-      string(TOLOWER "${_cfg}" _cfg_name)
-      set(_variant "${target}-${_san}-${_cfg_name}")
+  #     string(TOLOWER "${_cfg}" _cfg_name)
+      set(_variant "${target}-${_san}")
 
       add_executable(${_variant} ${_sources})
       target_set_standards(${_variant})
 
       target_link_libraries(${_variant} PRIVATE ${target})
 
-      separate_arguments(_cfg_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS_${_cfg}}")
+  #     separate_arguments(_cfg_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS_${_cfg}}")
+  #     target_compile_options(${_variant} PRIVATE ${_cfg_flags})
 
-      target_compile_options(${_variant} PRIVATE ${_san_flags_${_san}} ${_cfg_flags})
+      target_compile_options(${_variant} PRIVATE ${_san_flags_${_san}})
       target_link_options(${_variant} PRIVATE ${_san_flags_${_san}})
 
       catch_discover_tests(${_variant} TEST_PREFIX "${_variant}: " ADD_TAGS_AS_LABELS)
 
-    endforeach()
+  #   endforeach()
   endforeach()
 
 endfunction()

@@ -41,12 +41,13 @@ namespace cts::spsc {
         RingChannel(RingChannel const&) = delete;
         RingChannel& operator=(RingChannel const&) = delete;
 
-        [[nodiscard]] static RingChannel with_capacity(size_t capacity
+        explicit RingChannel(size_t capacity
             , Allocator allocator = Allocator{}
-        ) {
-            auto buffer = alloc_traits::allocate(allocator, capacity);
-            return RingChannel{capacity, buffer, allocator};
-        }
+        )
+            : alloc_{std::move(allocator)}
+            , capacity_{capacity}
+            , buffer_{alloc_traits::allocate(alloc_, capacity_)}
+        {}
 
         void send_refresh() const noexcept {
             rx_head_cache_ = rx_head_.load(std::memory_order_acquire);

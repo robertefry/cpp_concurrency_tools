@@ -2,13 +2,36 @@
 #include "cts/spsc_channel.hh"
 
 #include "helper/channel_thrasher.hh"
+#include "helper/instance_counter.hh"
 
 #include <catch2/catch_all.hpp>
+
+TEST_CASE("channel lifetime", "[channel][unit]")
+{
+    using Channel = cts::spsc::RingChannel<int>;
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<Channel>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<Channel>);
+    STATIC_REQUIRE_FALSE(std::is_move_constructible_v<Channel>);
+    STATIC_REQUIRE_FALSE(std::is_move_assignable_v<Channel>);
+
+    SECTION("destruction empties the channel")
+    {
+        InstanceCounter counter;
+        auto* channel = new cts::spsc::RingChannel<InstanceCounter::Copyable>{16};
+
+        channel->send(counter.make_copyable());
+        channel->send(counter.make_copyable());
+        REQUIRE(counter.use_count() == 2);
+
+        delete channel;
+        REQUIRE(counter.use_count() == 0);
+    }
+}
 
 TEST_CASE("channel sequential operation", "[channel][unit]")
 {
     static constexpr size_t capacity = 16;
-    auto channel = cts::spsc::RingChannel<size_t>::with_capacity(capacity);
+    auto channel = cts::spsc::RingChannel<size_t>{16};
 
     REQUIRE(channel.send_available() == capacity);
     REQUIRE(channel.recv_available() == 0);
@@ -53,7 +76,7 @@ TEST_CASE("channel thrashing", "[channel][load]")
         thrasher.consumer_work_time = std::chrono::nanoseconds{GENERATE(0,100)};
     }
 
-    auto channel = cts::spsc::RingChannel<size_t>::with_capacity(64);
+    auto channel = cts::spsc::RingChannel<size_t>{64};
     auto runner = thrasher.setup(&channel);
 
     runner.run_blocking();
