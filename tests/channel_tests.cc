@@ -26,6 +26,37 @@ TEST_CASE("channel lifetime", "[channel][unit]")
         delete channel;
         REQUIRE(counter.use_count() == 0);
     }
+
+    SECTION("total disconnection empties the channel")
+    {
+        InstanceCounter counter;
+        auto [tx,rx] = cts::spsc::channel_bounded<InstanceCounter::Copyable>(16);
+
+        tx.send(counter.make_copyable());
+        tx.send(counter.make_copyable());
+        REQUIRE(counter.use_count() == 2);
+
+        REQUIRE(tx.is_connected()); REQUIRE(not tx.is_detached());
+        REQUIRE(rx.is_connected()); REQUIRE(not rx.is_detached());
+
+        SECTION("tx detachment first") {
+            tx.detach();
+            REQUIRE(not tx.is_connected()); REQUIRE(tx.is_detached());
+            REQUIRE(not rx.is_connected()); REQUIRE(not rx.is_detached());
+            rx.detach();
+        }
+
+        SECTION("rx detachment first") {
+            rx.detach();
+            REQUIRE(not rx.is_connected()); REQUIRE(rx.is_detached());
+            REQUIRE(not tx.is_connected()); REQUIRE(not tx.is_detached());
+            tx.detach();
+        }
+
+        REQUIRE(not tx.is_connected()); REQUIRE(tx.is_detached());
+        REQUIRE(not rx.is_connected()); REQUIRE(rx.is_detached());
+        REQUIRE(counter.use_count() == 0);
+    }
 }
 
 TEST_CASE("channel sequential operation", "[channel][unit]")
@@ -38,7 +69,6 @@ TEST_CASE("channel sequential operation", "[channel][unit]")
 
     channel.send(42);
 
-    [[maybe_unused]] auto const x = channel.send_available();
     REQUIRE(channel.send_available() == capacity - 1);
     REQUIRE(channel.recv_available() == 1);
 
@@ -61,7 +91,40 @@ TEST_CASE("channel sequential operation", "[channel][unit]")
         REQUIRE(channel.recv() == i);
     }
     REQUIRE(not channel.recv_available());
+}
 
+TEST_CASE("channel endpoint operation", "[channel][unit]")
+{
+    static constexpr size_t capacity = 16;
+    auto [tx,rx] = cts::spsc::channel_bounded<size_t>(16);
+
+    REQUIRE(tx.available() == capacity);
+    REQUIRE(rx.available() == 0);
+
+    tx.send(42);
+
+    REQUIRE(tx.available() == capacity - 1);
+    REQUIRE(rx.available() == 1);
+
+    REQUIRE(rx.recv() == 42);
+
+    REQUIRE(tx.available() == capacity - 1);
+    tx.refresh();
+
+    REQUIRE(tx.available() == capacity);
+    REQUIRE(rx.available() == 0);
+
+    for (size_t i = 0; i < capacity; ++i) {
+        REQUIRE(tx.available());
+        tx.send(i);
+    }
+    REQUIRE(not tx.available());
+
+    for (size_t i = 0; i < capacity; ++i) {
+        REQUIRE(rx.available());
+        REQUIRE(rx.recv() == i);
+    }
+    REQUIRE(not rx.available());
 }
 
 TEST_CASE("channel thrashing", "[channel][load]")
